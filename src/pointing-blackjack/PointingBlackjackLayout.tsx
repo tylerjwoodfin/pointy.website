@@ -22,7 +22,7 @@ export const PointingBlackjackLayout: React.FC = () => {
               Powered by <a href="https://www.tyler.cloud">tyler.cloud</a>; <a href="https://venmo.com/tylerjwoodfin?txn=pay">buy me a chai latte</a>?</p>
           ) : null}
           {inLiveSession(pathname) ? (
-            <Link className="pointing-blackjack__back" to="/pointing-showdown">
+            <Link className="pointing-blackjack__back" to="https://tyler.cloud/pointing-showdown">
               ← Lobby
             </Link>
           ) : null}
