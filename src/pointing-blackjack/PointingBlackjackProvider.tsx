@@ -87,7 +87,10 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
     "idle" | "connecting" | "open" | "error"
   >("idle");
   const [state, setState] = useState<SessionState | null>(null);
+  const stateRef = useRef<SessionState | null>(null);
+  stateRef.current = state;
   const [lastError, setLastError] = useState<string | null>(null);
+  const sendWhenReadyRef = useRef<(payload: object, onCant?: () => void) => void>(() => {});
 
   const clearSessionExistsDeadline = useCallback((sessionId: string) => {
     const t = sessionExistsProbeTimeouts.current.get(sessionId);
@@ -154,6 +157,19 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
             flushSessionExistsWaiters(sid, { exists, invalid });
           }
           if (msg.type === "error" && msg.message) {
+            if (msg.message === "Not in a session") {
+              const s = stateRef.current;
+              const id = s ? readStoredIdentity(s.sessionId) : null;
+              if (s && !s.gameOver && id) {
+                sendWhenReadyRef.current({
+                  type: "join",
+                  sessionId: s.sessionId,
+                  name: id.name,
+                  playerId: id.playerId,
+                });
+                return;
+              }
+            }
             setLastError(msg.message);
           }
         } catch {
@@ -193,6 +209,9 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
     if (existing && existing.readyState === WebSocket.CONNECTING) {
       return existing;
     }
+    if (existing && existing.readyState === WebSocket.CLOSING) {
+      return existing;
+    }
     setConnectionStatus("connecting");
     setLastError(null);
     const ws = new WebSocket(pointingBlackjackWsUrl());
@@ -228,6 +247,28 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
           return;
         }
         if (trySend(ws)) return;
+        if (ws.readyState === WebSocket.CLOSING) {
+          ws.addEventListener(
+            "close",
+            () => {
+              const next = ensureOpenSocket();
+              if (!next) {
+                onCant?.();
+                return;
+              }
+              if (trySend(next)) return;
+              next.addEventListener(
+                "open",
+                () => {
+                  trySend(next);
+                },
+                { once: true }
+              );
+            },
+            { once: true }
+          );
+          return;
+        }
         const onOpen = () => {
           ws.removeEventListener("open", onOpen);
           trySend(ws);
@@ -237,6 +278,8 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
     },
     [ensureOpenSocket]
   );
+
+  sendWhenReadyRef.current = sendWhenReady;
 
   const createSession = useCallback(
     (name: string, sessionId?: string) => {

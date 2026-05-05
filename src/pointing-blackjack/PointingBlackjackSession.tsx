@@ -408,7 +408,6 @@ export const PointingBlackjackSession: React.FC = () => {
     );
   }
 
-  const isHost = state.myPlayerId === state.hostPlayerId;
   const myVote = state.voteByPlayer[state.myPlayerId];
   const myNumeric =
     typeof myVote === "number"
@@ -426,7 +425,6 @@ export const PointingBlackjackSession: React.FC = () => {
           <div className="pb-session__room">
             <span className="pb-muted">Room:</span>
             <code className="pb-code">{state.sessionId}</code>
-            {isHost ? <span className="pb-badge">Host</span> : null}
           </div>
           <div className="pb-session__actions">
             <button type="button" className="pb-button" onClick={copyLink}>
@@ -461,12 +459,7 @@ export const PointingBlackjackSession: React.FC = () => {
                           <td>
                             <span className="pb-table__player">
                               <OnlineDot online={p.online} />
-                              <span className="pb-player__name">
-                                {p.name}
-                                {p.id === state.hostPlayerId ? (
-                                  <span className="pb-muted"> (host)</span>
-                                ) : null}
-                              </span>
+                              <span className="pb-player__name">{p.name}</span>
                             </span>
                           </td>
                           <td

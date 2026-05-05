@@ -7,8 +7,14 @@ import {
 import { usePointingBlackjack } from "./PointingBlackjackProvider";
 
 export const PointingBlackjackLobby: React.FC = () => {
-  const { createSession, joinSession, state, lastError, connectionStatus } =
-    usePointingBlackjack();
+  const {
+    createSession,
+    joinSession,
+    leaveTable,
+    state,
+    lastError,
+    connectionStatus,
+  } = usePointingBlackjack();
   const navigate = useNavigate();
   const [startName, setStartName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -56,15 +62,22 @@ export const PointingBlackjackLobby: React.FC = () => {
     e.preventDefault();
     const raw = joinCode.trim();
     const id = raw.includes("/") ? raw.split("/").filter(Boolean).pop() || raw : raw;
+    if (state?.sessionId && state.sessionId !== id) {
+      leaveTable();
+    }
     joinSession(id, joinName);
   };
 
   const openSession = (sessionId: string) => {
+    if (state?.sessionId && state.sessionId !== sessionId) {
+      leaveTable();
+    }
     navigate(`/pointing-showdown/${sessionId}`);
   };
 
   return (
-    <div className="pb-lobby">      <section className="pb-panel">
+    <div className="pb-lobby">
+      <section className="pb-panel">
       <h2>Start a session</h2>
       <p className="pb-muted">You’ll get a link to share with your team.</p>
       <form onSubmit={onStart} className="pb-form">
