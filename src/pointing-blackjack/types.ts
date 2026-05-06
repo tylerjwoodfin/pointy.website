@@ -10,7 +10,6 @@ export type PlayerRow = {
 
 export type SessionState = {
   sessionId: string;
-  hostPlayerId: string;
   myPlayerId: string;
   revealed: boolean;
   gameOver: boolean;

@@ -10,7 +10,7 @@ const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
 const SESSION_TTL_MS = 60 * 60 * 1000;
 
 /** @typedef {{ name: string, online: true }} Player */
-/** @typedef {{ id: string, hostPlayerId: string, revealed: boolean, gameOver: boolean, expiresAt: number, players: Map<string, Player>, votes: Map<string, number|null> }} Session */
+/** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, players: Map<string, Player>, votes: Map<string, number|null> }} Session */
 
 /** @type {Map<string, Session>} */
 const sessions = new Map();
@@ -108,7 +108,6 @@ function buildStateForPlayer(session, viewerId) {
 
   return {
     sessionId: session.id,
-    hostPlayerId: session.hostPlayerId,
     myPlayerId: viewerId,
     revealed: session.revealed,
     gameOver: session.gameOver,
@@ -177,6 +176,14 @@ function handleClose(ws) {
   removeFromRoom(sessionId, ws);
   const session = sessions.get(sessionId);
   if (!session) return;
+
+  // Reconnects can briefly overlap two sockets for the same player; only remove the
+  // participant when no remaining connection still represents them.
+  for (const [, m] of socketMeta) {
+    if (m.sessionId === sessionId && m.playerId === playerId) {
+      return;
+    }
+  }
 
   session.players.delete(playerId);
   session.votes.delete(playerId);
@@ -264,21 +271,20 @@ wss.on("connection", (ws) => {
         }
       }
       const sessionId = requestedId || shortSessionId();
-      const hostPlayerId = randomUUID();
+      const creatorId = randomUUID();
       const expiresAt = Date.now() + SESSION_TTL_MS;
       /** @type {Session} */
       const session = {
         id: sessionId,
-        hostPlayerId,
         revealed: false,
         gameOver: false,
         expiresAt,
-        players: new Map([[hostPlayerId, { name, online: true }]]),
+        players: new Map([[creatorId, { name, online: true }]]),
         votes: new Map(),
       };
       sessions.set(sessionId, session);
       scheduleSessionExpiry(sessionId);
-      registerPlayerSocket(ws, session, hostPlayerId);
+      registerPlayerSocket(ws, session, creatorId);
       return;
     }
 
