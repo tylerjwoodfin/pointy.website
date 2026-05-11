@@ -60,6 +60,7 @@ type Ctx = {
   reveal: () => void;
   newRound: () => void;
   leaveTable: () => void;
+  setBrb: (brb: boolean) => void;
 };
 
 const PointingBlackjackContext = createContext<Ctx | null>(null);
@@ -394,6 +395,13 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
     setLastError(null);
   }, []);
 
+  const setBrb = useCallback(
+    (brb: boolean) => {
+      sendWhenReady({ type: "setBrb", brb });
+    },
+    [sendWhenReady]
+  );
+
   const value: Ctx = {
     connectionStatus,
     state,
@@ -407,6 +415,7 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
     reveal,
     newRound,
     leaveTable,
+    setBrb,
   };
 
   return (

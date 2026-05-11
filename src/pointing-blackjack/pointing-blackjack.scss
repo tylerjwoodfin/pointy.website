@@ -195,6 +195,16 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
       box-shadow: $pb-glow-green, $pb-glow-green-lg;
     }
   }
+
+  &--brb-active {
+    border-color: rgba(232, 85, 85, 0.55);
+    color: #ffbcbc;
+
+    &:not(:disabled):hover {
+      box-shadow: 0 0 12px rgba(232, 85, 85, 0.45),
+        0 0 18px rgba(232, 85, 85, 0.22);
+    }
+  }
 }
 
 .pb-error {
@@ -309,6 +319,13 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   gap: 10px;
 }
 
+.pb-brb-suffix {
+  color: $pb-muted;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .pb-table__vote {
   font-weight: 500;
 }
@@ -319,6 +336,11 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
 
 .pb-table__vote--no {
   color: $pb-muted;
+}
+
+.pb-table__vote--brb {
+  color: $pb-danger;
+  font-weight: 600;
 }
 
 .pb-table__vote-hint {
@@ -358,6 +380,11 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   }
 
   &--off {
+    background: $pb-danger;
+    color: $pb-danger;
+  }
+
+  &--brb {
     background: $pb-danger;
     color: $pb-danger;
   }
@@ -506,6 +533,12 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   }
 
   &__tick {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    // Reserve two lines (main + sub) so every column is the same height and bars align
+    min-height: calc(1.2em + 13.2px);
     text-align: center;
     font-size: 14px;
     color: $pb-text;
@@ -574,6 +607,11 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
 
 .pb-frown {
   margin-right: 2px;
+}
+
+.pb-vote-brb-label {
+  color: $pb-danger;
+  font-weight: 600;
 }
 
 .pb-avg-column {
