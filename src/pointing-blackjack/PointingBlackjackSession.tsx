@@ -107,11 +107,14 @@ const VoteCardGrid: React.FC<{
   </div>
 );
 
-function OnlineDot({ online }: { online: boolean }) {
+function PlayerStatusDot({ online, brb }: { online: boolean; brb?: boolean }) {
+  const kind = brb ? "brb" : online ? "on" : "off";
+  const title =
+    brb ? "Be right back" : online ? "Online" : "Offline";
   return (
     <span
-      className={`pb-dot ${online ? "pb-dot--on" : "pb-dot--off"}`}
-      title={online ? "Online" : "Offline"}
+      className={`pb-dot pb-dot--${kind}`}
+      title={title}
       aria-hidden
     />
   );
@@ -132,6 +135,7 @@ export const PointingBlackjackSession: React.FC = () => {
     reveal,
     newRound,
     leaveTable,
+    setBrb,
     connectionStatus,
   } = usePointingBlackjack();
 
@@ -418,6 +422,9 @@ export const PointingBlackjackSession: React.FC = () => {
   const counts = buildCounts(state.voteByPlayer, playerIds);
   const avg = averageVote(state.voteByPlayer, playerIds);
 
+  const myPlayer = state.players.find((p) => p.id === state.myPlayerId);
+  const myBrb = myPlayer?.brb === true;
+
   return (
     <div className="pb-session">
       <>
@@ -429,6 +436,13 @@ export const PointingBlackjackSession: React.FC = () => {
           <div className="pb-session__actions">
             <button type="button" className="pb-button" onClick={copyLink}>
               {copied ? "Copied!" : "Copy invite link"}
+            </button>
+            <button
+              type="button"
+              className={`pb-button pb-button--ghost ${myBrb ? "pb-button--brb-active" : ""}`}
+              onClick={() => setBrb(!myBrb)}
+            >
+              {myBrb ? "I'm back" : "BRB"}
             </button>
             <button type="button" className="pb-button pb-button--ghost" onClick={onLeave}>
               Leave table
@@ -454,17 +468,28 @@ export const PointingBlackjackSession: React.FC = () => {
                   <tbody>
                     {state.players.map((p) => {
                       const voted = hasSubmittedVote(state.voteByPlayer[p.id]);
+                      const brb = p.brb === true;
                       return (
                         <tr key={p.id}>
                           <td>
                             <span className="pb-table__player">
-                              <OnlineDot online={p.online} />
+                              <PlayerStatusDot online={p.online} brb={brb} />
                               <span className="pb-player__name">{p.name}</span>
+                              {brb ? (
+                                <span className="pb-brb-suffix" aria-label="Be right back">
+                                  {" "}
+                                  - BRB
+                                </span>
+                              ) : null}
                             </span>
                           </td>
                           <td
                             aria-label={
-                              voted ? "Has voted; value hidden until reveal" : "Waiting to vote"
+                              voted
+                                ? "Has voted; value hidden until reveal"
+                                : brb
+                                  ? "Be right back"
+                                  : "Waiting to vote"
                             }
                           >
                             {voted ? (
@@ -475,6 +500,8 @@ export const PointingBlackjackSession: React.FC = () => {
                                   · face down
                                 </span>
                               </span>
+                            ) : brb ? (
+                              <span className="pb-table__vote pb-table__vote--brb">BRB</span>
                             ) : (
                               <span className="pb-table__vote pb-table__vote--no">
                                 Waiting
@@ -517,17 +544,25 @@ export const PointingBlackjackSession: React.FC = () => {
                 <ul className="pb-vote-list">
                   {state.players.map((p) => {
                     const v = state.voteByPlayer[p.id];
-                    const has =
-                      typeof v === "number";
+                    const has = typeof v === "number";
+                    const brb = p.brb === true;
                     return (
                       <li key={p.id} className="pb-vote-row">
                         <span className="pb-vote-row__name">
-                          <OnlineDot online={p.online} />
+                          <PlayerStatusDot online={p.online} brb={brb} />
                           {p.name}
+                          {brb ? (
+                            <span className="pb-brb-suffix" aria-label="Be right back">
+                              {" "}
+                              - BRB
+                            </span>
+                          ) : null}
                         </span>
                         <span className="pb-vote-row__val">
                           {has ? (
                             formatVoteDisplay(v, true)
+                          ) : brb ? (
+                            <span className="pb-vote-brb-label">BRB</span>
                           ) : (
                             <>
                               <span className="pb-frown" aria-hidden>

@@ -9,7 +9,7 @@ import { randomUUID } from "crypto";
 const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
 const SESSION_TTL_MS = 60 * 60 * 1000;
 
-/** @typedef {{ name: string, online: true }} Player */
+/** @typedef {{ name: string, online: true, brb?: boolean }} Player */
 /** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, players: Map<string, Player>, votes: Map<string, number|null> }} Session */
 
 /** @type {Map<string, Session>} */
@@ -91,6 +91,7 @@ function buildStateForPlayer(session, viewerId) {
     id,
     name: pl.name,
     online: true,
+    brb: pl.brb === true,
   }));
 
   /** @type {Record<string, number | null | 'hidden'>} */
@@ -329,6 +330,15 @@ wss.on("connection", (ws) => {
     if (!session || session.gameOver) return;
     if (Date.now() > session.expiresAt) {
       expireSession(meta.sessionId);
+      return;
+    }
+
+    if (msg.type === "setBrb") {
+      const pl = session.players.get(meta.playerId);
+      if (pl) {
+        pl.brb = msg.brb === true;
+        broadcastSession(session.id);
+      }
       return;
     }
 

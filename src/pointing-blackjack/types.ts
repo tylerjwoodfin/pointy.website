@@ -6,6 +6,8 @@ export type PlayerRow = {
   id: string;
   name: string;
   online: boolean;
+  /** Away / be right back — own row shows red status; missed votes show BRB instead of a frown. */
+  brb?: boolean;
 };
 
 export type SessionState = {
