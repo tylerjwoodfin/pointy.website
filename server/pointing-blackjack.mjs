@@ -8,6 +8,7 @@ import { randomUUID } from "crypto";
 
 const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
 const SESSION_TTL_MS = 60 * 60 * 1000;
+const HEARTBEAT_INTERVAL_MS = 25 * 1000;
 
 /** @typedef {{ name: string, online: true, brb?: boolean }} Player */
 /** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, players: Map<string, Player>, votes: Map<string, number|null> }} Session */
@@ -199,6 +200,15 @@ function handleClose(ws) {
 
 const wss = new WebSocketServer({ port: PORT, host: "0.0.0.0" });
 
+function markSocketAlive(ws) {
+  ws.isAlive = true;
+}
+
+wss.on("connection", (ws) => {
+  markSocketAlive(ws);
+  ws.on("pong", () => markSocketAlive(ws));
+});
+
 wss.on("connection", (ws) => {
   ws.on("close", () => handleClose(ws));
   ws.on("message", (raw) => {
@@ -371,6 +381,33 @@ wss.on("connection", (ws) => {
       return;
     }
   });
+});
+
+const heartbeatTimer = setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) {
+      try {
+        ws.terminate();
+      } catch {
+        // ignore
+      }
+      continue;
+    }
+    ws.isAlive = false;
+    try {
+      ws.ping();
+    } catch {
+      try {
+        ws.terminate();
+      } catch {
+        // ignore
+      }
+    }
+  }
+}, HEARTBEAT_INTERVAL_MS);
+
+wss.on("close", () => {
+  clearInterval(heartbeatTimer);
 });
 
 console.log(`Pointing Blackjack server on ws://localhost:${PORT}`);
