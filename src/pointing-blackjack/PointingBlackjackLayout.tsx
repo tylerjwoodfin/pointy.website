@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   PointingBlackjackProvider,
   usePointingBlackjack,
 } from "./PointingBlackjackProvider";
+import { POINTING_SHOWDOWN_TITLE, swapDocumentTitle } from "./documentTitle";
 import "./pointing-blackjack.scss";
 
 const inLiveSession = (pathname: string) => {
@@ -41,6 +42,10 @@ const PointingBlackjackHeader: React.FC<{ showTagline: boolean }> = ({
 export const PointingBlackjackLayout: React.FC = () => {
   const { pathname } = useLocation();
   const showTagline = !inLiveSession(pathname);
+
+  useEffect(() => {
+    return swapDocumentTitle(POINTING_SHOWDOWN_TITLE);
+  }, []);
 
   return (
     <div className="pointing-blackjack">
