@@ -219,6 +219,9 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
                 return;
               }
             }
+            if (msg.message === "Session not found") {
+              setState(null);
+            }
             setLastError(msg.message);
           }
         } catch {
@@ -465,6 +468,14 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
   const leaveTable = useCallback(() => {
     clearReconnectTimer();
     closedByUserRef.current = true;
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ type: "leave" }));
+      } catch {
+        // ignore
+      }
+    }
     wsRef.current?.close();
     wsRef.current = null;
     setState(null);
