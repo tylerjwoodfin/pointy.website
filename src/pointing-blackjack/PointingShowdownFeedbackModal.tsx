@@ -5,12 +5,13 @@ type ModalPhase = "form" | "submitting" | "thanks" | "error";
 interface PointingShowdownFeedbackModalProps {
   isOpen: boolean;
   sessionId?: string;
+  playerName?: string;
   onClose: () => void;
 }
 
 export const PointingShowdownFeedbackModal: React.FC<
   PointingShowdownFeedbackModalProps
-> = ({ isOpen, sessionId, onClose }) => {
+> = ({ isOpen, sessionId, playerName, onClose }) => {
   const [message, setMessage] = useState("");
   const [phase, setPhase] = useState<ModalPhase>("form");
   const [errorText, setErrorText] = useState("");
@@ -41,9 +42,10 @@ export const PointingShowdownFeedbackModal: React.FC<
     setPhase("submitting");
     setErrorText("");
 
-    const fullMessage = sessionId
-      ? `[Room: ${sessionId}]\n\n${trimmed}`
-      : trimmed;
+    const meta: string[] = [];
+    if (sessionId) meta.push(`[Room: ${sessionId}]`);
+    if (playerName) meta.push(`[Player: ${playerName}]`);
+    const fullMessage = meta.length ? `${meta.join("\n")}\n\n${trimmed}` : trimmed;
 
     try {
       const response = await fetch("/submit-feedback", {

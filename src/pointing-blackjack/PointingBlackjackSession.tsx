@@ -422,6 +422,7 @@ export const PointingBlackjackSession: React.FC = () => {
         <PointingShowdownFeedbackModal
           isOpen={feedbackOpen}
           sessionId={state.sessionId}
+          playerName={state.players.find((p) => p.id === state.myPlayerId)?.name}
           onClose={() => setFeedbackOpen(false)}
         />
       </div>
@@ -448,6 +449,11 @@ export const PointingBlackjackSession: React.FC = () => {
           <div className="pb-session__room">
             <span className="pb-muted">Room:</span>
             <code className="pb-code">{state.sessionId}</code>
+            {connectionStatus !== "open" ? (
+              <span className="pb-session__connection" role="status">
+                {connectionStatus === "connecting" ? "Reconnecting…" : "Disconnected"}
+              </span>
+            ) : null}
           </div>
           <div className="pb-session__actions">
             <button type="button" className="pb-button" onClick={copyLink}>
@@ -622,6 +628,7 @@ export const PointingBlackjackSession: React.FC = () => {
       <PointingShowdownFeedbackModal
         isOpen={feedbackOpen}
         sessionId={state.sessionId}
+        playerName={myPlayer?.name}
         onClose={() => setFeedbackOpen(false)}
       />
     </div>

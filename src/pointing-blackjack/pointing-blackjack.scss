@@ -246,6 +246,12 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
     font-size: 17px;
   }
 
+  &__connection {
+    font-size: 14px;
+    color: #ffb86c;
+    font-style: italic;
+  }
+
   &__actions {
     display: flex;
     flex-wrap: wrap;
