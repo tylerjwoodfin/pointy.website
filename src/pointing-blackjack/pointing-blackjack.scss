@@ -701,3 +701,69 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
     margin-bottom: 24px;
   }
 }
+
+.pb-feedback-modal {
+  position: relative;
+  width: min(480px, calc(100vw - 32px));
+  background: $pb-surface;
+  border: 1px solid $pb-border;
+  border-radius: 14px;
+  padding: 28px 24px 24px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55);
+
+  &__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.62);
+    backdrop-filter: blur(4px);
+  }
+
+  &__close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    border: none;
+    background: transparent;
+    color: $pb-muted;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+
+    &:hover:not(:disabled) {
+      color: $pb-text;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__title {
+    margin: 0 0 16px;
+    font-weight: 400;
+    font-size: 1.5rem;
+  }
+
+  &__textarea {
+    resize: vertical;
+    min-height: 120px;
+    font-family: inherit;
+    line-height: 1.45;
+  }
+
+  &__thanks {
+    margin: 24px 0;
+    text-align: center;
+    font-size: 1.25rem;
+    color: $pb-accent;
+  }
+}

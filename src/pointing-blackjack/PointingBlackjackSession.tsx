@@ -7,6 +7,7 @@ import {
   usePointingBlackjack,
 } from "./PointingBlackjackProvider";
 import { isValidRoomCode } from "./roomCode";
+import { PointingShowdownFeedbackModal } from "./PointingShowdownFeedbackModal";
 import type { VoteValue } from "./types";
 
 type RoomPhase = "loading" | "unreachable" | "invalid" | "missing" | "exists";
@@ -141,6 +142,7 @@ export const PointingBlackjackSession: React.FC = () => {
 
   const [joinName, setJoinName] = useState("");
   const [copied, setCopied] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const autoJoinTried = useRef(false);
   const [roomPhase, setRoomPhase] = useState<RoomPhase>("loading");
   /** Bumps the room probe when the user retries after a connection failure. */
@@ -404,10 +406,24 @@ export const PointingBlackjackSession: React.FC = () => {
           <p className="pb-muted">
             This session ends 60 minutes after it starts. Start a new one from the lobby anytime.
           </p>
-          <button type="button" className="pb-button pb-button--primary" onClick={onLeave}>
-            Back to lobby
-          </button>
+          <div className="pb-card-actions">
+            <button type="button" className="pb-button pb-button--primary" onClick={onLeave}>
+              Back to lobby
+            </button>
+            <button
+              type="button"
+              className="pb-button pb-button--ghost"
+              onClick={() => setFeedbackOpen(true)}
+            >
+              Feedback
+            </button>
+          </div>
         </div>
+        <PointingShowdownFeedbackModal
+          isOpen={feedbackOpen}
+          sessionId={state.sessionId}
+          onClose={() => setFeedbackOpen(false)}
+        />
       </div>
     );
   }
@@ -443,6 +459,13 @@ export const PointingBlackjackSession: React.FC = () => {
               onClick={() => setBrb(!myBrb)}
             >
               {myBrb ? "I'm back" : "BRB"}
+            </button>
+            <button
+              type="button"
+              className="pb-button pb-button--ghost"
+              onClick={() => setFeedbackOpen(true)}
+            >
+              Feedback
             </button>
             <button type="button" className="pb-button pb-button--ghost" onClick={onLeave}>
               Leave table
@@ -596,6 +619,11 @@ export const PointingBlackjackSession: React.FC = () => {
           </section>
         )}
       </>
+      <PointingShowdownFeedbackModal
+        isOpen={feedbackOpen}
+        sessionId={state.sessionId}
+        onClose={() => setFeedbackOpen(false)}
+      />
     </div>
   );
 };
