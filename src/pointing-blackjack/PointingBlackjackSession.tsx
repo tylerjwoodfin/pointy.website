@@ -480,7 +480,7 @@ export const PointingBlackjackSession: React.FC = () => {
         </div>
 
         {!state.revealed ? (
-          <>
+          <div className="pb-voting-layout">
             <section className="pb-panel pb-players">
               <h2>Players</h2>
               <p className="pb-muted pb-players__hint">
@@ -543,22 +543,22 @@ export const PointingBlackjackSession: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-
-              <div className="pb-card-actions">
-                <button
-                  type="button"
-                  className="pb-button pb-button--accent"
-                  onClick={reveal}
-                >
-                  Reveal cards
-                </button>
-              </div>
             </section>
 
-            <section className="pb-panel">
+            <section className="pb-panel pb-voting-layout__cards">
               <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
             </section>
-          </>
+
+            <div className="pb-voting-layout__actions pb-card-actions">
+              <button
+                type="button"
+                className="pb-button pb-button--accent"
+                onClick={reveal}
+              >
+                Reveal cards
+              </button>
+            </div>
+          </div>
         ) : (
           <section className="pb-panel pb-revealed">
             <div className="pb-revealed__actions">
