@@ -43,6 +43,8 @@ export type SessionProbeResult = {
   invalid: boolean;
   /** WebSocket never connected, timed out, or closed before a response. */
   unreachable?: boolean;
+  /** Present when the session exists — used to avoid duplicate anonymous emojis. */
+  playerNames?: string[];
 };
 
 const SESSION_EXISTS_PROBE_TIMEOUT_MS = 15_000;
@@ -198,12 +200,16 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
               sessionId?: string;
               exists?: boolean;
               invalid?: boolean;
+              playerNames?: unknown;
             };
             const sid = typeof m.sessionId === "string" ? m.sessionId : "";
             if (!sid) return;
             const invalid = m.invalid === true;
             const exists = invalid ? false : m.exists === true;
-            flushSessionExistsWaiters(sid, { exists, invalid });
+            const playerNames = Array.isArray(m.playerNames)
+              ? m.playerNames.filter((n): n is string => typeof n === "string")
+              : undefined;
+            flushSessionExistsWaiters(sid, { exists, invalid, playerNames });
           }
           if (msg.type === "error" && msg.message) {
             if (msg.message === "Not in a session") {

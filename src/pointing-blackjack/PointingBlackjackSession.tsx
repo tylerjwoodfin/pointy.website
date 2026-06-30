@@ -8,6 +8,7 @@ import {
 } from "./PointingBlackjackProvider";
 import { isValidRoomCode } from "./roomCode";
 import { PointingShowdownFeedbackModal } from "./PointingShowdownFeedbackModal";
+import { uniqueAnonymousName } from "./anonymousName";
 import type { VoteValue } from "./types";
 
 type RoomPhase = "loading" | "unreachable" | "invalid" | "missing" | "exists";
@@ -147,6 +148,7 @@ export const PointingBlackjackSession: React.FC = () => {
   const [roomPhase, setRoomPhase] = useState<RoomPhase>("loading");
   /** Bumps the room probe when the user retries after a connection failure. */
   const [probeNonce, setProbeNonce] = useState(0);
+  const [sessionPlayerNames, setSessionPlayerNames] = useState<string[]>([]);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -185,13 +187,16 @@ export const PointingBlackjackSession: React.FC = () => {
       return;
     }
     setRoomPhase("loading");
+    setSessionPlayerNames([]);
     void querySessionExists(paramId).then((r) => {
       if (cancelled) return;
       if (stateRef.current?.sessionId === paramId) return;
       if (r.unreachable) setRoomPhase("unreachable");
       else if (r.invalid) setRoomPhase("invalid");
-      else if (r.exists) setRoomPhase("exists");
-      else setRoomPhase("missing");
+      else if (r.exists) {
+        setSessionPlayerNames(r.playerNames ?? []);
+        setRoomPhase("exists");
+      } else setRoomPhase("missing");
     });
     return () => {
       cancelled = true;
@@ -226,6 +231,12 @@ export const PointingBlackjackSession: React.FC = () => {
     autoJoinTried.current = true;
     joinSession(paramId, joinName);
   };
+
+  const joinAnonymously = useCallback(() => {
+    if (!paramId) return;
+    autoJoinTried.current = true;
+    joinSession(paramId, uniqueAnonymousName(sessionPlayerNames));
+  }, [paramId, joinSession, sessionPlayerNames]);
 
   const onStartTable = (e: React.FormEvent) => {
     e.preventDefault();
@@ -386,6 +397,14 @@ export const PointingBlackjackSession: React.FC = () => {
               disabled={!joinName.trim() || connectionStatus === "connecting"}
             >
               Join table
+            </button>
+            <button
+              type="button"
+              className="pb-button pb-button--ghost"
+              disabled={connectionStatus === "connecting"}
+              onClick={joinAnonymously}
+            >
+              Join Anonymously
             </button>
           </form>
           {lastError ? <p className="pb-error">{lastError}</p> : null}
@@ -566,61 +585,63 @@ export const PointingBlackjackSession: React.FC = () => {
                 Next round
               </button>
             </div>
-            <div className="pb-reveal-grid">
-              <FrequencyBars counts={counts} />
-              <div className="pb-votes-column">
-                <h3>Votes</h3>
-                <ul className="pb-vote-list">
-                  {state.players.map((p) => {
-                    const v = state.voteByPlayer[p.id];
-                    const has = typeof v === "number";
-                    const brb = p.brb === true;
-                    return (
-                      <li key={p.id} className="pb-vote-row">
-                        <span className="pb-vote-row__name">
-                          <PlayerStatusDot online={p.online} brb={brb} />
-                          {p.name}
-                          {brb ? (
-                            <span className="pb-brb-suffix" aria-label="Be right back">
-                              {" "}
-                              - BRB
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="pb-vote-row__val">
-                          {has ? (
-                            formatVoteDisplay(v, true)
-                          ) : brb ? (
-                            <span className="pb-vote-brb-label">BRB</span>
-                          ) : (
-                            <>
-                              <span className="pb-frown" aria-hidden>
-                                ☹️
-                              </span>{" "}
-                              no vote
-                            </>
-                          )}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
+            <div className="pb-revealed-layout">
+              <div className="pb-revealed-layout__aside">
+                <FrequencyBars counts={counts} />
+                <div className="pb-avg-column">
+                  <h3>Average</h3>
+                  {avg !== null ? (
+                    <p className="pb-avg-value">{avg.toFixed(2)}</p>
+                  ) : (
+                    <p className="pb-muted">No votes yet.</p>
+                  )}
+                  <p className="pb-muted pb-avg-note">Non-voters excluded.</p>
+                </div>
+                <div className="pb-votes-column">
+                  <h3>Votes</h3>
+                  <ul className="pb-vote-list">
+                    {state.players.map((p) => {
+                      const v = state.voteByPlayer[p.id];
+                      const has = typeof v === "number";
+                      const brb = p.brb === true;
+                      return (
+                        <li key={p.id} className="pb-vote-row">
+                          <span className="pb-vote-row__name">
+                            <PlayerStatusDot online={p.online} brb={brb} />
+                            {p.name}
+                            {brb ? (
+                              <span className="pb-brb-suffix" aria-label="Be right back">
+                                {" "}
+                                - BRB
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="pb-vote-row__val">
+                            {has ? (
+                              formatVoteDisplay(v, true)
+                            ) : brb ? (
+                              <span className="pb-vote-brb-label">BRB</span>
+                            ) : (
+                              <>
+                                <span className="pb-frown" aria-hidden>
+                                  ☹️
+                                </span>{" "}
+                                no vote
+                              </>
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               </div>
-              <div className="pb-avg-column">
-                <h3>Average</h3>
-                {avg !== null ? (
-                  <p className="pb-avg-value">{avg.toFixed(2)}</p>
-                ) : (
-                  <p className="pb-muted">No votes yet.</p>
-                )}
-                <p className="pb-muted pb-avg-note">Non-voters excluded.</p>
-              </div>
-            </div>
-            <div className="pb-revealed__vote-again">
-              <p className="pb-muted">
-                Feel free to change your vote... or vote for the first time. I won't judge.
-              </p>
-              <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
+              <section className="pb-panel pb-revealed-layout__cards">
+                <p className="pb-muted pb-revealed__vote-hint">
+                  Feel free to change your vote... or vote for the first time. I won't judge.
+                </p>
+                <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
+              </section>
             </div>
           </section>
         )}
