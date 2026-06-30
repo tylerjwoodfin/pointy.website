@@ -206,6 +206,17 @@ function isValidSessionId(raw) {
   return /^[a-zA-Z0-9_-]+$/.test(sessionId);
 }
 
+/** Keep in sync with src/pointing-blackjack/anonymousName.ts */
+const ANONYMOUS_PREFIX = "Anonymous ";
+
+/** @param {string} name */
+function parseAnonymousEmoji(name) {
+  if (!name.startsWith(ANONYMOUS_PREFIX)) return null;
+  const rest = name.slice(ANONYMOUS_PREFIX.length).trim();
+  const match = rest.match(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u);
+  return match ? match[1] : null;
+}
+
 /**
  * @param {import('ws').WebSocket} ws
  * @param {Session} session
@@ -290,12 +301,17 @@ function attachSocketHandlers(wss) {
       }
       const session = sessions.get(raw);
       const exists = !!(session && sessionIsLive(session));
+      /** @type {string[]} */
+      const playerNames = exists
+        ? [...session.players.values()].map((pl) => pl.name)
+        : [];
       ws.send(
         JSON.stringify({
           type: "sessionExistsResult",
           sessionId: raw,
           exists,
           invalid: false,
+          playerNames,
         })
       );
       return;
@@ -372,6 +388,16 @@ function attachSocketHandlers(wss) {
         expireSession(sessionId);
         ws.send(JSON.stringify({ type: "error", message: "Session not found" }));
         return;
+      }
+      const incomingEmoji = parseAnonymousEmoji(name);
+      const joiningExisting = existingId && session.players.has(existingId);
+      if (incomingEmoji && !joiningExisting) {
+        for (const [, pl] of session.players) {
+          if (parseAnonymousEmoji(pl.name) === incomingEmoji) {
+            sendError(ws, "That anonymous emoji is already taken");
+            return;
+          }
+        }
       }
       let playerId = existingId;
       if (playerId && session.players.has(playerId)) {
