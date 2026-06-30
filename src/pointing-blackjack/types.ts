@@ -15,7 +15,7 @@ export type SessionState = {
   myPlayerId: string;
   revealed: boolean;
   gameOver: boolean;
-  /** Unix ms when the server drops this table (60 minutes after creation). */
+  /** Unix ms when the server drops this table (2 hours after creation). */
   expiresAt: number;
   players: PlayerRow[];
   voteByPlayer: Record<string, SerializedVote>;

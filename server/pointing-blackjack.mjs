@@ -2,13 +2,20 @@
  * Real-time session server for Pointing Blackjack.
  * Run: node server/pointing-blackjack.mjs
  * Port: POINTING_BLACKJACK_PORT or 3333
+ *
+ * Session state is persisted in Supabase (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY).
  */
 import { WebSocketServer } from "ws";
 import { randomUUID } from "crypto";
+import {
+  createPointingStore,
+  loadSupabaseConfig,
+} from "./pointing-blackjack-store.mjs";
 
 const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
-const SESSION_TTL_MS = 60 * 60 * 1000;
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 25 * 1000;
+const EXPIRED_SESSION_CLEANUP_MS = 10 * 60 * 1000;
 
 /** @typedef {{ name: string, online: boolean, brb?: boolean }} Player */
 /** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, players: Map<string, Player>, votes: Map<string, number|null> }} Session */
@@ -21,6 +28,33 @@ const socketMeta = new Map();
 const roomSockets = new Map();
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const sessionExpiryTimers = new Map();
+
+/** @type {ReturnType<typeof createPointingStore> | null} */
+let store = null;
+
+/**
+ * @param {Session} session
+ */
+async function saveSession(session) {
+  if (!store) return;
+  try {
+    await store.persistSession(session);
+  } catch (err) {
+    console.error(`Failed to persist session ${session.id}:`, err);
+  }
+}
+
+/**
+ * @param {string} sessionId
+ */
+async function removeSessionFromStore(sessionId) {
+  if (!store) return;
+  try {
+    await store.deleteSession(sessionId);
+  } catch (err) {
+    console.error(`Failed to delete session ${sessionId}:`, err);
+  }
+}
 
 function clearSessionExpiryTimer(sessionId) {
   const t = sessionExpiryTimers.get(sessionId);
@@ -72,6 +106,7 @@ function expireSession(sessionId) {
   broadcastSession(sessionId);
   closeAllSessionSockets(sessionId);
   sessions.delete(sessionId);
+  void removeSessionFromStore(sessionId);
 }
 
 function scheduleSessionExpiry(sessionId) {
@@ -216,20 +251,22 @@ function handleClose(ws) {
   broadcastSession(sessionId);
 }
 
-const wss = new WebSocketServer({ port: PORT, host: "0.0.0.0" });
-
 function markSocketAlive(ws) {
   ws.isAlive = true;
 }
 
-wss.on("connection", (ws) => {
-  markSocketAlive(ws);
-  ws.on("pong", () => markSocketAlive(ws));
-});
+/**
+ * @param {import('ws').WebSocketServer} wss
+ */
+function attachSocketHandlers(wss) {
+  wss.on("connection", (ws) => {
+    markSocketAlive(ws);
+    ws.on("pong", () => markSocketAlive(ws));
+  });
 
-wss.on("connection", (ws) => {
-  ws.on("close", () => handleClose(ws));
-  ws.on("message", (raw) => {
+  wss.on("connection", (ws) => {
+    ws.on("close", () => handleClose(ws));
+    ws.on("message", (raw) => {
     let msg;
     try {
       msg = JSON.parse(raw.toString());
@@ -314,6 +351,7 @@ wss.on("connection", (ws) => {
       sessions.set(sessionId, session);
       scheduleSessionExpiry(sessionId);
       registerPlayerSocket(ws, session, creatorId);
+      void saveSession(session);
       return;
     }
 
@@ -349,6 +387,7 @@ wss.on("connection", (ws) => {
         session.players.set(playerId, { name, online: true });
       }
       registerPlayerSocket(ws, session, playerId);
+      void saveSession(session);
       return;
     }
 
@@ -374,6 +413,7 @@ wss.on("connection", (ws) => {
       socketMeta.delete(ws);
       removeFromRoom(meta.sessionId, ws);
       broadcastSession(meta.sessionId);
+      void saveSession(session);
       return;
     }
 
@@ -382,6 +422,7 @@ wss.on("connection", (ws) => {
       if (pl) {
         pl.brb = msg.brb === true;
         broadcastSession(session.id);
+        void saveSession(session);
       }
       return;
     }
@@ -396,18 +437,21 @@ wss.on("connection", (ws) => {
       }
       session.votes.set(meta.playerId, v);
       broadcastSession(session.id);
+      void saveSession(session);
       return;
     }
 
     if (msg.type === "clearVote") {
       session.votes.delete(meta.playerId);
       broadcastSession(session.id);
+      void saveSession(session);
       return;
     }
 
     if (msg.type === "reveal") {
       session.revealed = true;
       broadcastSession(session.id);
+      void saveSession(session);
       return;
     }
 
@@ -415,36 +459,80 @@ wss.on("connection", (ws) => {
       session.revealed = false;
       session.votes.clear();
       broadcastSession(session.id);
+      void saveSession(session);
       return;
     }
+    });
   });
-});
+}
 
-const heartbeatTimer = setInterval(() => {
-  for (const ws of wss.clients) {
-    if (ws.isAlive === false) {
-      try {
-        ws.terminate();
-      } catch {
-        // ignore
-      }
-      continue;
-    }
-    ws.isAlive = false;
-    try {
-      ws.ping();
-    } catch {
-      try {
-        ws.terminate();
-      } catch {
-        // ignore
-      }
-    }
+async function main() {
+  const supabaseCfg = loadSupabaseConfig();
+  if (!supabaseCfg) {
+    console.error(
+      "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — Pointing Showdown requires Supabase."
+    );
+    process.exit(1);
   }
-}, HEARTBEAT_INTERVAL_MS);
+  store = createPointingStore(supabaseCfg);
+  try {
+    await store.hydrateSessions(sessions);
+    for (const sessionId of sessions.keys()) {
+      scheduleSessionExpiry(sessionId);
+    }
+    console.log(`Hydrated ${sessions.size} session(s) from Supabase`);
+  } catch (err) {
+    console.error("Failed to hydrate sessions from Supabase:", err);
+    process.exit(1);
+  }
 
-wss.on("close", () => {
-  clearInterval(heartbeatTimer);
+  const wss = new WebSocketServer({ port: PORT, host: "0.0.0.0" });
+  attachSocketHandlers(wss);
+
+  const heartbeatTimer = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (ws.isAlive === false) {
+        try {
+          ws.terminate();
+        } catch {
+          // ignore
+        }
+        continue;
+      }
+      ws.isAlive = false;
+      try {
+        ws.ping();
+      } catch {
+        try {
+          ws.terminate();
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
+  const cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [sessionId, session] of sessions) {
+      if (!sessionIsLive(session) || now > session.expiresAt) {
+        expireSession(sessionId);
+      }
+    }
+    void store.deleteExpiredSessions().catch((err) => {
+      console.error("Failed to delete expired Supabase sessions:", err);
+    });
+  }, EXPIRED_SESSION_CLEANUP_MS);
+
+  wss.on("close", () => {
+    clearInterval(heartbeatTimer);
+    clearInterval(cleanupTimer);
+  });
+
+  console.log(`Pointing Blackjack server on ws://localhost:${PORT}`);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });
-
-console.log(`Pointing Blackjack server on ws://localhost:${PORT}`);
