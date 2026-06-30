@@ -2,6 +2,7 @@
  * Supabase persistence for Pointing Showdown sessions.
  * Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
  */
+import WebSocket from "ws";
 import { createClient } from "@supabase/supabase-js";
 
 /**
@@ -25,6 +26,7 @@ export function loadSupabaseConfig() {
 export function createPointingStore(cfg) {
   const supabase = createClient(cfg.url, cfg.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: { transport: WebSocket },
   });
 
   /**

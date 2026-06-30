@@ -35,3 +35,6 @@ alter table public.pointing_players enable row level security;
 alter table public.pointing_votes enable row level security;
 
 -- No anon/authenticated policies: only the service role (WebSocket server) accesses these tables.
+grant all on public.pointing_sessions to service_role;
+grant all on public.pointing_players to service_role;
+grant all on public.pointing_votes to service_role;
