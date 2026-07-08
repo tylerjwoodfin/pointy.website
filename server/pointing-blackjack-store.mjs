@@ -6,7 +6,8 @@ import WebSocket from "ws";
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * @typedef {{ name: string, online: boolean, brb?: boolean }} Player
+ * @typedef {'product' | 'qa' | 'dev'} PlayerRole
+ * @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole }} Player
  * @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, players: Map<string, Player>, votes: Map<string, number|null> }} Session
  */
 
@@ -28,6 +29,81 @@ export function createPointingStore(cfg) {
     auth: { persistSession: false, autoRefreshToken: false },
     realtime: { transport: WebSocket },
   });
+
+  /** @type {boolean | null} */
+  let roleColumnSupported = null;
+
+  /**
+   * @param {unknown} error
+   */
+  function isMissingRoleColumn(error) {
+    return (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      /** @type {{ code?: string }} */ (error).code === "42703"
+    );
+  }
+
+  /**
+   * @param {string} sessionId
+   */
+  async function fetchPlayerRows(sessionId) {
+    if (roleColumnSupported === false) {
+      const { data, error } = await supabase
+        .from("pointing_players")
+        .select("id, name, brb")
+        .eq("session_id", sessionId);
+      if (error) throw error;
+      return data ?? [];
+    }
+
+    const { data, error } = await supabase
+      .from("pointing_players")
+      .select("id, name, brb, role")
+      .eq("session_id", sessionId);
+    if (error && isMissingRoleColumn(error)) {
+      roleColumnSupported = false;
+      console.warn(
+        "pointing_players.role column missing — run supabase/migrations/20260708000000_pointing_player_role.sql"
+      );
+      return fetchPlayerRows(sessionId);
+    }
+    if (error) throw error;
+    roleColumnSupported = true;
+    return data ?? [];
+  }
+
+  /**
+   * @param {Array<{ id: string, session_id: string, name: string, brb: boolean, role: PlayerRole }>} playerRows
+   */
+  async function insertPlayerRows(playerRows) {
+    if (!playerRows.length) return;
+
+    if (roleColumnSupported === false) {
+      const legacyRows = playerRows.map(({ id, session_id, name, brb }) => ({
+        id,
+        session_id,
+        name,
+        brb,
+      }));
+      const { error } = await supabase.from("pointing_players").insert(legacyRows);
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase.from("pointing_players").insert(playerRows);
+    if (error && isMissingRoleColumn(error)) {
+      roleColumnSupported = false;
+      console.warn(
+        "pointing_players.role column missing — run supabase/migrations/20260708000000_pointing_player_role.sql"
+      );
+      await insertPlayerRows(playerRows);
+      return;
+    }
+    if (error) throw error;
+    roleColumnSupported = true;
+  }
 
   /**
    * @param {Session} session
@@ -58,10 +134,10 @@ export function createPointingStore(cfg) {
       session_id: session.id,
       name: pl.name,
       brb: pl.brb === true,
+      role: pl.role ?? "dev",
     }));
     if (playerRows.length) {
-      const { error: playersErr } = await supabase.from("pointing_players").insert(playerRows);
-      if (playersErr) throw playersErr;
+      await insertPlayerRows(playerRows);
     }
 
     const voteRows = [...session.votes.entries()]
@@ -105,11 +181,7 @@ export function createPointingStore(cfg) {
     if (sessionErr) throw sessionErr;
 
     for (const row of sessionRows ?? []) {
-      const { data: playerRows, error: playersErr } = await supabase
-        .from("pointing_players")
-        .select("id, name, brb")
-        .eq("session_id", row.id);
-      if (playersErr) throw playersErr;
+      const playerRows = await fetchPlayerRows(row.id);
 
       const { data: voteRows, error: votesErr } = await supabase
         .from("pointing_votes")
@@ -124,9 +196,18 @@ export function createPointingStore(cfg) {
         gameOver: row.game_over === true,
         expiresAt: new Date(row.expires_at).getTime(),
         players: new Map(
-          (playerRows ?? []).map((p) => [
+          playerRows.map((p) => [
             p.id,
-            { name: p.name, online: false, brb: p.brb === true },
+            {
+              name: p.name,
+              online: false,
+              brb: p.brb === true,
+              role:
+                "role" in p &&
+                (p.role === "product" || p.role === "qa" || p.role === "dev")
+                  ? p.role
+                  : "dev",
+            },
           ])
         ),
         votes: new Map((voteRows ?? []).map((v) => [v.player_id, v.value])),

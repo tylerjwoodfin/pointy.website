@@ -17,7 +17,8 @@ const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 25 * 1000;
 const EXPIRED_SESSION_CLEANUP_MS = 10 * 60 * 1000;
 
-/** @typedef {{ name: string, online: boolean, brb?: boolean }} Player */
+/** @typedef {'product' | 'qa' | 'dev'} PlayerRole */
+/** @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole }} Player */
 /** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, players: Map<string, Player>, votes: Map<string, number|null> }} Session */
 
 /** @type {Map<string, Session>} */
@@ -129,6 +130,7 @@ function buildStateForPlayer(session, viewerId) {
     name: pl.name,
     online: pl.online !== false,
     brb: pl.brb === true,
+    role: pl.role ?? "dev",
   }));
 
   /** @type {Record<string, number | null | 'hidden'>} */
@@ -206,15 +208,10 @@ function isValidSessionId(raw) {
   return /^[a-zA-Z0-9_-]+$/.test(sessionId);
 }
 
-/** Keep in sync with src/pointing-blackjack/anonymousName.ts */
-const ANONYMOUS_PREFIX = "Anonymous ";
-
-/** @param {string} name */
-function parseAnonymousEmoji(name) {
-  if (!name.startsWith(ANONYMOUS_PREFIX)) return null;
-  const rest = name.slice(ANONYMOUS_PREFIX.length).trim();
-  const match = rest.match(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u);
-  return match ? match[1] : null;
+/** @param {unknown} raw @returns {PlayerRole | null} */
+function parsePlayerRole(raw) {
+  if (raw === "product" || raw === "qa" || raw === "dev") return raw;
+  return null;
 }
 
 /**
@@ -361,7 +358,7 @@ function attachSocketHandlers(wss) {
         revealed: false,
         gameOver: false,
         expiresAt,
-        players: new Map([[creatorId, { name, online: true }]]),
+        players: new Map([[creatorId, { name, online: true, role: "product" }]]),
         votes: new Map(),
       };
       sessions.set(sessionId, session);
@@ -375,6 +372,7 @@ function attachSocketHandlers(wss) {
       const sessionId = typeof msg.sessionId === "string" ? msg.sessionId.trim() : "";
       const name = typeof msg.name === "string" ? msg.name.trim().slice(0, 40) : "";
       const existingId = typeof msg.playerId === "string" ? msg.playerId : null;
+      const role = parsePlayerRole(msg.role) ?? "dev";
       if (!sessionId || !name) {
         ws.send(JSON.stringify({ type: "error", message: "Session and name required" }));
         return;
@@ -389,16 +387,6 @@ function attachSocketHandlers(wss) {
         ws.send(JSON.stringify({ type: "error", message: "Session not found" }));
         return;
       }
-      const incomingEmoji = parseAnonymousEmoji(name);
-      const joiningExisting = existingId && session.players.has(existingId);
-      if (incomingEmoji && !joiningExisting) {
-        for (const [, pl] of session.players) {
-          if (parseAnonymousEmoji(pl.name) === incomingEmoji) {
-            sendError(ws, "That anonymous emoji is already taken");
-            return;
-          }
-        }
-      }
       let playerId = existingId;
       if (playerId && session.players.has(playerId)) {
         const pl = session.players.get(playerId);
@@ -407,10 +395,10 @@ function attachSocketHandlers(wss) {
           pl.online = true;
         }
       } else if (playerId) {
-        session.players.set(playerId, { name, online: true });
+        session.players.set(playerId, { name, online: true, role });
       } else {
         playerId = randomUUID();
-        session.players.set(playerId, { name, online: true });
+        session.players.set(playerId, { name, online: true, role });
       }
       registerPlayerSocket(ws, session, playerId);
       void saveSession(session);
@@ -447,6 +435,21 @@ function attachSocketHandlers(wss) {
       const pl = session.players.get(meta.playerId);
       if (pl) {
         pl.brb = msg.brb === true;
+        broadcastSession(session.id);
+        void saveSession(session);
+      }
+      return;
+    }
+
+    if (msg.type === "updateName") {
+      const name = typeof msg.name === "string" ? msg.name.trim().slice(0, 40) : "";
+      if (!name) {
+        sendError(ws, "Name required");
+        return;
+      }
+      const pl = session.players.get(meta.playerId);
+      if (pl) {
+        pl.name = name;
         broadcastSession(session.id);
         void saveSession(session);
       }

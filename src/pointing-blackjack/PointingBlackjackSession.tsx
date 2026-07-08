@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCheck, faLink } from "@fortawesome/free-solid-svg-icons";
 import { POINT_VALUES, cardLabel, formatVoteDisplay } from "./cards";
 import { FrequencyBars } from "./FrequencyBars";
 import {
@@ -8,8 +10,8 @@ import {
 } from "./PointingBlackjackProvider";
 import { isValidRoomCode } from "./roomCode";
 import { PointingShowdownFeedbackModal } from "./PointingShowdownFeedbackModal";
-import { uniqueAnonymousName } from "./anonymousName";
-import type { VoteValue } from "./types";
+import { uniqueCodename } from "./codename";
+import type { PlayerRole, PlayerRow, VoteValue } from "./types";
 
 type RoomPhase = "loading" | "unreachable" | "invalid" | "missing" | "exists";
 
@@ -122,6 +124,89 @@ function PlayerStatusDot({ online, brb }: { online: boolean; brb?: boolean }) {
   );
 }
 
+function RoleFlair({ role }: { role?: PlayerRole }) {
+  if (role === "qa") {
+    return (
+      <span className="pb-flair pb-flair--qa" aria-label="QA">
+        QA
+      </span>
+    );
+  }
+  if (role === "dev") {
+    return (
+      <span className="pb-flair pb-flair--dev" aria-label="Dev">
+        Dev
+      </span>
+    );
+  }
+  return null;
+}
+
+function PlayerNameCell({ player, brb }: { player: PlayerRow; brb?: boolean }) {
+  return (
+    <span className="pb-player-line">
+      <PlayerStatusDot online={player.online} brb={brb} />
+      <span className="pb-player-line__name">{player.name}</span>
+      <span className="pb-player-line__flair">
+        <RoleFlair role={player.role} />
+      </span>
+      {brb ? (
+        <span className="pb-brb-suffix" aria-label="Be right back">
+          - BRB
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function YouCard({
+  name,
+  role,
+  onSave,
+}: {
+  name: string;
+  role?: PlayerRole;
+  onSave: (name: string) => void;
+}) {
+  const [draft, setDraft] = useState(name);
+
+  useEffect(() => {
+    setDraft(name);
+  }, [name]);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== name) onSave(trimmed);
+    else setDraft(name);
+  };
+
+  return (
+    <section className="pb-panel pb-you">
+      <h2>You</h2>
+      <label className="pb-label pb-you__label">
+        <div className="pb-you__row">
+          <input
+            className="pb-input"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            maxLength={40}
+            autoComplete="nickname"
+          />
+          <RoleFlair role={role} />
+        </div>
+      </label>
+    </section>
+  );
+}
+
 export const PointingBlackjackSession: React.FC = () => {
   const { sessionId: paramId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
@@ -138,10 +223,13 @@ export const PointingBlackjackSession: React.FC = () => {
     newRound,
     leaveTable,
     setBrb,
+    updateName,
     connectionStatus,
   } = usePointingBlackjack();
 
   const [joinName, setJoinName] = useState("");
+  const [productJoinSelected, setProductJoinSelected] = useState(false);
+  const productNameInputRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const autoJoinTried = useRef(false);
@@ -177,7 +265,13 @@ export const PointingBlackjackSession: React.FC = () => {
 
   useEffect(() => {
     autoJoinTried.current = false;
+    setProductJoinSelected(false);
   }, [paramId]);
+
+  useEffect(() => {
+    if (!productJoinSelected) return;
+    productNameInputRef.current?.focus();
+  }, [productJoinSelected]);
 
   useEffect(() => {
     if (!paramId) return;
@@ -225,17 +319,30 @@ export const PointingBlackjackSession: React.FC = () => {
     clearLastError();
   }, [lastError, roomPhase, clearLastError]);
 
-  const onManualJoin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!paramId) return;
-    autoJoinTried.current = true;
-    joinSession(paramId, joinName);
-  };
+  const selectProductJoin = useCallback(() => {
+    setProductJoinSelected(true);
+  }, []);
 
-  const joinAnonymously = useCallback(() => {
+  const confirmProductJoin = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!paramId || !joinName.trim()) return;
+      autoJoinTried.current = true;
+      joinSession(paramId, joinName, { role: "product" });
+    },
+    [paramId, joinName, joinSession]
+  );
+
+  const joinAsQa = useCallback(() => {
     if (!paramId) return;
     autoJoinTried.current = true;
-    joinSession(paramId, uniqueAnonymousName(sessionPlayerNames));
+    joinSession(paramId, uniqueCodename(sessionPlayerNames), { role: "qa" });
+  }, [paramId, joinSession, sessionPlayerNames]);
+
+  const joinAsDev = useCallback(() => {
+    if (!paramId) return;
+    autoJoinTried.current = true;
+    joinSession(paramId, uniqueCodename(sessionPlayerNames), { role: "dev" });
   }, [paramId, joinSession, sessionPlayerNames]);
 
   const onStartTable = (e: React.FormEvent) => {
@@ -335,19 +442,19 @@ export const PointingBlackjackSession: React.FC = () => {
               Room <strong className="pb-code">{paramId}</strong> isn&apos;t active. You can
               start it and keep this exact link.
             </p>
-            <form onSubmit={onStartTable} className="pb-form">
-              <label className="pb-label">
-                Your name
-                <input
-                  className="pb-input"
-                  value={joinName}
-                  onChange={(e) => setJoinName(e.target.value)}
-                  placeholder="Bender"
-                  maxLength={40}
-                  autoComplete="nickname"
-                  autoFocus
-                />
-              </label>
+          <form onSubmit={onStartTable} className="pb-form">
+            <label className="pb-label">
+              Your name (Product)
+              <input
+                className="pb-input"
+                value={joinName}
+                onChange={(e) => setJoinName(e.target.value)}
+                placeholder="Product owner"
+                maxLength={40}
+                autoComplete="nickname"
+                autoFocus
+              />
+            </label>
               <button
                 type="submit"
                 className="pb-button pb-button--primary"
@@ -378,35 +485,61 @@ export const PointingBlackjackSession: React.FC = () => {
           <p className="pb-muted">
             Room <strong className="pb-code">{paramId}</strong>
           </p>
-          <form onSubmit={onManualJoin} className="pb-form">
-            <label className="pb-label">
-              Your name
-              <input
-                className="pb-input"
-                value={joinName}
-                onChange={(e) => setJoinName(e.target.value)}
-                placeholder="Bender"
-                maxLength={40}
-                autoComplete="nickname"
-                autoFocus
-              />
-            </label>
-            <button
-              type="submit"
-              className="pb-button pb-button--primary"
-              disabled={!joinName.trim() || connectionStatus === "connecting"}
+          <div className="pb-join-options">
+            <div className="pb-join-options__buttons">
+              <button
+                type="button"
+                className={`pb-button ${productJoinSelected ? "pb-button--primary" : "pb-button--ghost"}`}
+                disabled={connectionStatus === "connecting"}
+                onClick={selectProductJoin}
+              >
+                Join as Product
+              </button>
+              <button
+                type="button"
+                className="pb-button pb-button--ghost"
+                disabled={connectionStatus === "connecting"}
+                onClick={joinAsQa}
+              >
+                Join as QA
+              </button>
+              <button
+                type="button"
+                className="pb-button pb-button--ghost"
+                disabled={connectionStatus === "connecting"}
+                onClick={joinAsDev}
+              >
+                Join as Dev
+              </button>
+            </div>
+            <div
+              className={`pb-join-product-name${productJoinSelected ? " pb-join-product-name--open" : ""}`}
+              aria-hidden={!productJoinSelected}
             >
-              Join table
-            </button>
-            <button
-              type="button"
-              className="pb-button pb-button--ghost"
-              disabled={connectionStatus === "connecting"}
-              onClick={joinAnonymously}
-            >
-              Join Anonymously
-            </button>
-          </form>
+              <form onSubmit={confirmProductJoin} className="pb-join-product-name__inner pb-form">
+                <label className="pb-label">
+                  Your name
+                  <input
+                    ref={productNameInputRef}
+                    className="pb-input"
+                    value={joinName}
+                    onChange={(e) => setJoinName(e.target.value)}
+                    placeholder="Product owner"
+                    maxLength={40}
+                    autoComplete="nickname"
+                    tabIndex={productJoinSelected ? 0 : -1}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="pb-button pb-button--primary"
+                  disabled={!joinName.trim() || connectionStatus === "connecting"}
+                >
+                  Join table
+                </button>
+              </form>
+            </div>
+          </div>
           {lastError ? <p className="pb-error">{lastError}</p> : null}
         </section>
       </div>
@@ -460,6 +593,110 @@ export const PointingBlackjackSession: React.FC = () => {
 
   const myPlayer = state.players.find((p) => p.id === state.myPlayerId);
   const myBrb = myPlayer?.brb === true;
+  const productPlayers = state.players.filter((p) => p.role === "product");
+  const teamPlayers = state.players.filter((p) => p.role !== "product");
+
+  const renderVoteTableBody = (players: PlayerRow[]) =>
+    players.map((p) => {
+      const voted = hasSubmittedVote(state.voteByPlayer[p.id]);
+      const brb = p.brb === true;
+      return (
+        <tr key={p.id}>
+          <td>
+            <PlayerNameCell player={p} brb={brb} />
+          </td>
+          <td
+            aria-label={
+              voted
+                ? "Has voted; value hidden until reveal"
+                : brb
+                  ? "Be right back"
+                  : "Waiting to vote"
+            }
+          >
+            {voted ? (
+              <span className="pb-table__vote pb-table__vote--yes">
+                Voted
+                <span className="pb-table__vote-hint" aria-hidden>
+                  {" "}
+                  · face down
+                </span>
+              </span>
+            ) : brb ? (
+              <span className="pb-table__vote pb-table__vote--brb">BRB</span>
+            ) : (
+              <span className="pb-table__vote pb-table__vote--no">Waiting</span>
+            )}
+          </td>
+        </tr>
+      );
+    });
+
+  const renderVoteList = (players: PlayerRow[]) =>
+    players.map((p) => {
+      const v = state.voteByPlayer[p.id];
+      const has = typeof v === "number";
+      const brb = p.brb === true;
+      return (
+        <li key={p.id} className="pb-vote-row">
+          <span className="pb-player-line pb-vote-row__name">
+            <PlayerStatusDot online={p.online} brb={brb} />
+            <span className="pb-player-line__name">{p.name}</span>
+            <span className="pb-player-line__flair">
+              <RoleFlair role={p.role} />
+            </span>
+            {brb ? (
+              <span className="pb-brb-suffix" aria-label="Be right back">
+                - BRB
+              </span>
+            ) : null}
+          </span>
+          <span className="pb-vote-row__val">
+            {has ? (
+              formatVoteDisplay(v, true)
+            ) : brb ? (
+              <span className="pb-vote-brb-label">BRB</span>
+            ) : (
+              <>
+                <span className="pb-frown" aria-hidden>
+                  ☹️
+                </span>{" "}
+                no vote
+              </>
+            )}
+          </span>
+        </li>
+      );
+    });
+
+  const renderProductTableBody = (players: PlayerRow[]) =>
+    players.map((p) => {
+      const brb = p.brb === true;
+      return (
+        <tr key={p.id}>
+          <td>
+            <PlayerNameCell player={p} brb={brb} />
+          </td>
+        </tr>
+      );
+    });
+
+  const renderProductList = (players: PlayerRow[]) =>
+    players.map((p) => {
+      const brb = p.brb === true;
+      return (
+        <li key={p.id} className="pb-product-row">
+          <PlayerStatusDot online={p.online} brb={brb} />
+          {p.name}
+          {brb ? (
+            <span className="pb-brb-suffix" aria-label="Be right back">
+              {" "}
+              - BRB
+            </span>
+          ) : null}
+        </li>
+      );
+    });
 
   return (
     <div className="pb-session">
@@ -468,6 +705,15 @@ export const PointingBlackjackSession: React.FC = () => {
           <div className="pb-session__room">
             <span className="pb-muted">Room:</span>
             <code className="pb-code">{state.sessionId}</code>
+            <button
+              type="button"
+              className={`pb-session__copy-link${copied ? " pb-session__copy-link--copied" : ""}`}
+              onClick={copyLink}
+              aria-label={copied ? "Invite link copied" : "Copy invite link"}
+              title={copied ? "Copied!" : "Copy invite link"}
+            >
+              <FontAwesomeIcon icon={copied ? faCheck : faLink} />
+            </button>
             {connectionStatus !== "open" ? (
               <span className="pb-session__connection" role="status">
                 {connectionStatus === "connecting" ? "Reconnecting…" : "Disconnected"}
@@ -475,9 +721,6 @@ export const PointingBlackjackSession: React.FC = () => {
             ) : null}
           </div>
           <div className="pb-session__actions">
-            <button type="button" className="pb-button" onClick={copyLink}>
-              {copied ? "Copied!" : "Copy invite link"}
-            </button>
             <button
               type="button"
               className={`pb-button pb-button--ghost ${myBrb ? "pb-button--brb-active" : ""}`}
@@ -500,69 +743,59 @@ export const PointingBlackjackSession: React.FC = () => {
 
         {!state.revealed ? (
           <div className="pb-voting-layout">
-            <section className="pb-panel pb-players">
-              <h2>Players</h2>
-              <p className="pb-muted pb-players__hint">
-                Points stay secret until someone reveals the cards.
-              </p>
-              <div className="pb-table-wrap">
-                <table className="pb-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Player</th>
-                      <th scope="col">Vote</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {state.players.map((p) => {
-                      const voted = hasSubmittedVote(state.voteByPlayer[p.id]);
-                      const brb = p.brb === true;
-                      return (
-                        <tr key={p.id}>
-                          <td>
-                            <span className="pb-table__player">
-                              <PlayerStatusDot online={p.online} brb={brb} />
-                              <span className="pb-player__name">{p.name}</span>
-                              {brb ? (
-                                <span className="pb-brb-suffix" aria-label="Be right back">
-                                  {" "}
-                                  - BRB
-                                </span>
-                              ) : null}
-                            </span>
-                          </td>
-                          <td
-                            aria-label={
-                              voted
-                                ? "Has voted; value hidden until reveal"
-                                : brb
-                                  ? "Be right back"
-                                  : "Waiting to vote"
-                            }
-                          >
-                            {voted ? (
-                              <span className="pb-table__vote pb-table__vote--yes">
-                                Voted
-                                <span className="pb-table__vote-hint" aria-hidden>
-                                  {" "}
-                                  · face down
-                                </span>
-                              </span>
-                            ) : brb ? (
-                              <span className="pb-table__vote pb-table__vote--brb">BRB</span>
-                            ) : (
-                              <span className="pb-table__vote pb-table__vote--no">
-                                Waiting
-                              </span>
-                            )}
+            <div className="pb-voting-layout__sidebar">
+              {myPlayer ? (
+                <YouCard
+                  name={myPlayer.name}
+                  role={myPlayer.role}
+                  onSave={updateName}
+                />
+              ) : null}
+
+              <section className="pb-panel pb-players">
+                <h2>Players</h2>
+                <p className="pb-muted pb-players__hint">
+                  Points stay secret until someone reveals the cards.
+                </p>
+                <div className="pb-table-wrap">
+                  <table className="pb-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Player</th>
+                        <th scope="col">Vote</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teamPlayers.length > 0 ? (
+                        renderVoteTableBody(teamPlayers)
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className="pb-muted">
+                            No QA or Dev players yet.
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {productPlayers.length > 0 ? (
+                <section className="pb-panel pb-product">
+                  <h2>Dealers</h2>
+                  <div className="pb-table-wrap">
+                    <table className="pb-table pb-table--product">
+                      <thead>
+                        <tr>
+                          <th scope="col">Player</th>
+                        </tr>
+                      </thead>
+                      <tbody>{renderProductTableBody(productPlayers)}</tbody>
+                    </table>
+                  </div>
+                </section>
+              ) : null}
+            </div>
 
             <section className="pb-panel pb-voting-layout__cards">
               <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
@@ -598,48 +831,23 @@ export const PointingBlackjackSession: React.FC = () => {
                   <p className="pb-muted pb-avg-note">Non-voters excluded.</p>
                 </div>
                 <div className="pb-votes-column">
-                  <h3>Votes</h3>
+                  <h3>Players</h3>
                   <ul className="pb-vote-list">
-                    {state.players.map((p) => {
-                      const v = state.voteByPlayer[p.id];
-                      const has = typeof v === "number";
-                      const brb = p.brb === true;
-                      return (
-                        <li key={p.id} className="pb-vote-row">
-                          <span className="pb-vote-row__name">
-                            <PlayerStatusDot online={p.online} brb={brb} />
-                            {p.name}
-                            {brb ? (
-                              <span className="pb-brb-suffix" aria-label="Be right back">
-                                {" "}
-                                - BRB
-                              </span>
-                            ) : null}
-                          </span>
-                          <span className="pb-vote-row__val">
-                            {has ? (
-                              formatVoteDisplay(v, true)
-                            ) : brb ? (
-                              <span className="pb-vote-brb-label">BRB</span>
-                            ) : (
-                              <>
-                                <span className="pb-frown" aria-hidden>
-                                  ☹️
-                                </span>{" "}
-                                no vote
-                              </>
-                            )}
-                          </span>
-                        </li>
-                      );
-                    })}
+                    {teamPlayers.length > 0 ? (
+                      renderVoteList(teamPlayers)
+                    ) : (
+                      <li className="pb-muted">No QA or Dev players yet.</li>
+                    )}
                   </ul>
                 </div>
+                {productPlayers.length > 0 ? (
+                  <div className="pb-votes-column pb-product">
+                    <h3>Dealers</h3>
+                    <ul className="pb-product-list">{renderProductList(productPlayers)}</ul>
+                  </div>
+                ) : null}
               </div>
               <section className="pb-panel pb-revealed-layout__cards">
-                <p className="pb-muted pb-revealed__vote-hint">
-                  Feel free to change your vote... or vote for the first time. I won't judge.
-                </p>
                 <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
               </section>
             </div>
