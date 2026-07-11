@@ -43,17 +43,48 @@ The WebSocket server **requires** Supabase credentials; without them it exits on
 | `npm test` | Jest / React Testing Library |
 | `npm run build` | Production static build |
 
-### Production WebSocket URL
+## Production (Cloudflare)
 
-For static hosts (e.g. Cloudflare Pages), set at build time:
+Same split as tyler.cloud’s pointing-showdown:
+
+| Piece | Host | How |
+|-------|------|-----|
+| React app | `https://pointy.website` | Cloudflare Pages (`npm run build` → `build/`) |
+| WebSocket | `wss://ws.pointy.website` | Cloudflare Tunnel → local Node `:3333` |
+| Persistence | Supabase | `SUPABASE_*` on the Node host |
+
+`public/_redirects` sends all routes to `index.html` so `/ROOM` deep links work on Pages.
+
+### 1. Cloudflare zone + DNS
+
+1. In Cloudflare: **Add site** → `pointy.website` (Free plan is fine).
+2. At Namecheap: set nameservers to the two Cloudflare NS values shown for the zone.
+3. Wait until the zone is **Active**.
+
+### 2. Cloudflare Pages
+
+1. **Workers & Pages** → **Create** → connect `tylerjwoodfin/pointy.website`.
+2. Build: `npm run build` · output: `build` · root: `/`.
+3. Build env: `REACT_APP_POINTING_BLACKJACK_WS` = `wss://ws.pointy.website`
+4. Custom domains: `pointy.website` and `www.pointy.website`.
+5. Pages Function secrets (feedback modal): `RESEND_API_KEY`, `FEEDBACK_EMAIL_FROM`, `FEEDBACK_EMAIL_TO`.
+
+### 3. WebSocket tunnel + Node server
+
+On the host (already running pointing-showdown):
 
 ```bash
-REACT_APP_POINTING_BLACKJACK_WS=wss://your-pointing-ws.example.com
+# After the zone is Active — routes DNS + refreshes tunnel ingress:
+~/git/cloudflared-setup/setup-pointy-website.sh
+
+# Serve from this repo (same Supabase env file as before):
+sudo systemctl restart pointing-blackjack
 ```
 
-See `.env.example`. Run `server/pointing-blackjack.mjs` (and optionally the systemd unit example) on a host that can accept WebSocket connections. Apply `supabase/migrations/` before the first run.
+Tunnel config: `cloudflared-setup/pointing-showdown.yml`  
+(`pointing-ws.tyler.cloud` and `ws.pointy.website` both hit `:3333`).
 
-Feedback from the in-session modal posts to `functions/submit-feedback.ts` (Cloudflare Pages + Resend); set `RESEND_API_KEY`, `FEEDBACK_EMAIL_FROM`, and `FEEDBACK_EMAIL_TO` in the Pages project.
+See `.env.example` and `server/pointing-blackjack.service.example`.
 
 ## Routes
 
