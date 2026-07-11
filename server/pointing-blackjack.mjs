@@ -314,20 +314,6 @@ function attachSocketHandlers(wss) {
       return;
     }
 
-    if (msg.type === "listSessions") {
-      /** @type {{ sessionId: string, playerCount: number }[]} */
-      const list = [];
-      for (const [sessionId, s] of sessions) {
-        if (!sessionIsLive(s)) continue;
-        const n = s.players.size;
-        if (n < 1) continue;
-        list.push({ sessionId, playerCount: n });
-      }
-      list.sort((a, b) => b.playerCount - a.playerCount || a.sessionId.localeCompare(b.sessionId));
-      ws.send(JSON.stringify({ type: "sessionsList", sessions: list }));
-      return;
-    }
-
     if (msg.type === "create") {
       const name = typeof msg.name === "string" ? msg.name.trim().slice(0, 40) : "";
       if (!name) {

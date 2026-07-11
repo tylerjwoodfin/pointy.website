@@ -8,7 +8,7 @@ Originally extracted from [tyler.cloud](https://github.com/tylerjwoodfin/tyler.c
 
 ## Features
 
-- Create or join a session with a short room code (or join anonymously)
+- Create a session and share an invite link (or join anonymously from the link)
 - Product / QA / Dev roles at the table
 - Real-time votes and reveal
 - BRB / away status for players
