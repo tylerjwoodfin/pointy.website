@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import type { SessionState } from "./types";
+import type { PlayerRole, SessionState } from "./types";
 import { whenWsConnectAllowed } from "./wsDefer";
 import { pointingBlackjackWsUrl } from "./wsUrl";
 
@@ -43,6 +43,8 @@ export type SessionProbeResult = {
   invalid: boolean;
   /** WebSocket never connected, timed out, or closed before a response. */
   unreachable?: boolean;
+  /** Present when the session exists — used to avoid duplicate codenames. */
+  playerNames?: string[];
 };
 
 const SESSION_EXISTS_PROBE_TIMEOUT_MS = 15_000;
@@ -52,7 +54,11 @@ type Ctx = {
   state: SessionState | null;
   lastError: string | null;
   createSession: (name: string, sessionId?: string) => void;
-  joinSession: (sessionId: string, name: string, resume?: { playerId: string }) => void;
+  joinSession: (
+    sessionId: string,
+    name: string,
+    options?: { playerId?: string; role?: PlayerRole }
+  ) => void;
   /** Whether a live session with this room id is on the server (also invalid if the code format is wrong). */
   querySessionExists: (sessionId: string) => Promise<SessionProbeResult>;
   clearLastError: () => void;
@@ -62,6 +68,7 @@ type Ctx = {
   newRound: () => void;
   leaveTable: () => void;
   setBrb: (brb: boolean) => void;
+  updateName: (name: string) => void;
 };
 
 const PointingBlackjackContext = createContext<Ctx | null>(null);
@@ -198,12 +205,16 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
               sessionId?: string;
               exists?: boolean;
               invalid?: boolean;
+              playerNames?: unknown;
             };
             const sid = typeof m.sessionId === "string" ? m.sessionId : "";
             if (!sid) return;
             const invalid = m.invalid === true;
             const exists = invalid ? false : m.exists === true;
-            flushSessionExistsWaiters(sid, { exists, invalid });
+            const playerNames = Array.isArray(m.playerNames)
+              ? m.playerNames.filter((n): n is string => typeof n === "string")
+              : undefined;
+            flushSessionExistsWaiters(sid, { exists, invalid, playerNames });
           }
           if (msg.type === "error" && msg.message) {
             if (msg.message === "Not in a session") {
@@ -218,6 +229,9 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
                 });
                 return;
               }
+            }
+            if (msg.message === "Session not found") {
+              setState(null);
             }
             setLastError(msg.message);
           }
@@ -430,14 +444,19 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
   const clearLastError = useCallback(() => setLastError(null), []);
 
   const joinSession = useCallback(
-    (sessionId: string, name: string, resume?: { playerId: string }) => {
+    (
+      sessionId: string,
+      name: string,
+      options?: { playerId?: string; role?: PlayerRole }
+    ) => {
       const n = name.trim();
       if (!n || !sessionId.trim()) return;
       sendWhenReady({
         type: "join",
         sessionId: sessionId.trim(),
         name: n,
-        ...(resume ? { playerId: resume.playerId } : {}),
+        ...(options?.playerId ? { playerId: options.playerId } : {}),
+        ...(options?.role ? { role: options.role } : {}),
       });
     },
     [sendWhenReady]
@@ -465,6 +484,14 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
   const leaveTable = useCallback(() => {
     clearReconnectTimer();
     closedByUserRef.current = true;
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ type: "leave" }));
+      } catch {
+        // ignore
+      }
+    }
     wsRef.current?.close();
     wsRef.current = null;
     setState(null);
@@ -475,6 +502,15 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
   const setBrb = useCallback(
     (brb: boolean) => {
       sendWhenReady({ type: "setBrb", brb });
+    },
+    [sendWhenReady]
+  );
+
+  const updateName = useCallback(
+    (name: string) => {
+      const n = name.trim();
+      if (!n) return;
+      sendWhenReady({ type: "updateName", name: n });
     },
     [sendWhenReady]
   );
@@ -493,6 +529,7 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
     newRound,
     leaveTable,
     setBrb,
+    updateName,
   };
 
   return (
