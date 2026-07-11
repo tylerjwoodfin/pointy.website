@@ -19,6 +19,9 @@ Restart=on-failure
 RestartSec=5
 Environment=NODE_ENV=production
 Environment=POINTING_BLACKJACK_PORT=3333
+# Supabase (run supabase/migrations/20260629000000_pointing_showdown.sql first)
+Environment=SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+Environment=SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 [Install]
 WantedBy=multi-user.target

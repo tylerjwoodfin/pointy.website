@@ -2,15 +2,23 @@
  * Real-time session server for Pointing Blackjack.
  * Run: node server/pointing-blackjack.mjs
  * Port: POINTING_BLACKJACK_PORT or 3333
+ *
+ * Session state is persisted in Supabase (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY).
  */
 import { WebSocketServer } from "ws";
 import { randomUUID } from "crypto";
+import {
+  createPointingStore,
+  loadSupabaseConfig,
+} from "./pointing-blackjack-store.mjs";
 
 const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
-const SESSION_TTL_MS = 60 * 60 * 1000;
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 25 * 1000;
+const EXPIRED_SESSION_CLEANUP_MS = 10 * 60 * 1000;
 
-/** @typedef {{ name: string, online: true, brb?: boolean }} Player */
+/** @typedef {'product' | 'qa' | 'dev'} PlayerRole */
+/** @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole }} Player */
 /** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, players: Map<string, Player>, votes: Map<string, number|null> }} Session */
 
 /** @type {Map<string, Session>} */
@@ -21,6 +29,33 @@ const socketMeta = new Map();
 const roomSockets = new Map();
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const sessionExpiryTimers = new Map();
+
+/** @type {ReturnType<typeof createPointingStore> | null} */
+let store = null;
+
+/**
+ * @param {Session} session
+ */
+async function saveSession(session) {
+  if (!store) return;
+  try {
+    await store.persistSession(session);
+  } catch (err) {
+    console.error(`Failed to persist session ${session.id}:`, err);
+  }
+}
+
+/**
+ * @param {string} sessionId
+ */
+async function removeSessionFromStore(sessionId) {
+  if (!store) return;
+  try {
+    await store.deleteSession(sessionId);
+  } catch (err) {
+    console.error(`Failed to delete session ${sessionId}:`, err);
+  }
+}
 
 function clearSessionExpiryTimer(sessionId) {
   const t = sessionExpiryTimers.get(sessionId);
@@ -52,6 +87,7 @@ function closeAllSessionSockets(sessionId) {
 /**
  * Drop an empty session (no participants left).
  * @param {string} sessionId
+ * @deprecated Sessions now expire via TTL only; kept for expireSession cleanup.
  */
 function deleteEmptySession(sessionId) {
   clearSessionExpiryTimer(sessionId);
@@ -71,6 +107,7 @@ function expireSession(sessionId) {
   broadcastSession(sessionId);
   closeAllSessionSockets(sessionId);
   sessions.delete(sessionId);
+  void removeSessionFromStore(sessionId);
 }
 
 function scheduleSessionExpiry(sessionId) {
@@ -91,8 +128,9 @@ function buildStateForPlayer(session, viewerId) {
   const players = [...session.players.entries()].map(([id, pl]) => ({
     id,
     name: pl.name,
-    online: true,
+    online: pl.online !== false,
     brb: pl.brb === true,
+    role: pl.role ?? "dev",
   }));
 
   /** @type {Record<string, number | null | 'hidden'>} */
@@ -119,6 +157,20 @@ function buildStateForPlayer(session, viewerId) {
   };
 }
 
+function sendJson(ws, payload) {
+  try {
+    if (ws.readyState === 1) {
+      ws.send(JSON.stringify(payload));
+    }
+  } catch {
+    // ignore stale socket
+  }
+}
+
+function sendError(ws, message) {
+  sendJson(ws, { type: "error", message });
+}
+
 function broadcastSession(sessionId) {
   const set = roomSockets.get(sessionId);
   const session = sessions.get(sessionId);
@@ -128,7 +180,7 @@ function broadcastSession(sessionId) {
     const meta = socketMeta.get(ws);
     if (!meta) continue;
     const state = buildStateForPlayer(session, meta.playerId);
-    ws.send(JSON.stringify({ type: "state", state }));
+    sendJson(ws, { type: "state", state });
   }
 }
 
@@ -156,12 +208,24 @@ function isValidSessionId(raw) {
   return /^[a-zA-Z0-9_-]+$/.test(sessionId);
 }
 
+/** @param {unknown} raw @returns {PlayerRole | null} */
+function parsePlayerRole(raw) {
+  if (raw === "product" || raw === "qa" || raw === "dev") return raw;
+  return null;
+}
+
 /**
  * @param {import('ws').WebSocket} ws
  * @param {Session} session
  * @param {string} playerId
  */
 function registerPlayerSocket(ws, session, playerId) {
+  const prev = socketMeta.get(ws);
+  if (prev && prev.sessionId !== session.id) {
+    removeFromRoom(prev.sessionId, ws);
+  }
+  const pl = session.players.get(playerId);
+  if (pl) pl.online = true;
   socketMeta.set(ws, { sessionId: session.id, playerId });
   addToRoom(session.id, ws);
   broadcastSession(session.id);
@@ -187,31 +251,30 @@ function handleClose(ws) {
     }
   }
 
-  session.players.delete(playerId);
-  session.votes.delete(playerId);
-
-  if (session.players.size === 0) {
-    deleteEmptySession(sessionId);
-    return;
+  const pl = session.players.get(playerId);
+  if (pl) {
+    pl.online = false;
   }
 
   broadcastSession(sessionId);
 }
 
-const wss = new WebSocketServer({ port: PORT, host: "0.0.0.0" });
-
 function markSocketAlive(ws) {
   ws.isAlive = true;
 }
 
-wss.on("connection", (ws) => {
-  markSocketAlive(ws);
-  ws.on("pong", () => markSocketAlive(ws));
-});
+/**
+ * @param {import('ws').WebSocketServer} wss
+ */
+function attachSocketHandlers(wss) {
+  wss.on("connection", (ws) => {
+    markSocketAlive(ws);
+    ws.on("pong", () => markSocketAlive(ws));
+  });
 
-wss.on("connection", (ws) => {
-  ws.on("close", () => handleClose(ws));
-  ws.on("message", (raw) => {
+  wss.on("connection", (ws) => {
+    ws.on("close", () => handleClose(ws));
+    ws.on("message", (raw) => {
     let msg;
     try {
       msg = JSON.parse(raw.toString());
@@ -235,12 +298,17 @@ wss.on("connection", (ws) => {
       }
       const session = sessions.get(raw);
       const exists = !!(session && sessionIsLive(session));
+      /** @type {string[]} */
+      const playerNames = exists
+        ? [...session.players.values()].map((pl) => pl.name)
+        : [];
       ws.send(
         JSON.stringify({
           type: "sessionExistsResult",
           sessionId: raw,
           exists,
           invalid: false,
+          playerNames,
         })
       );
       return;
@@ -290,12 +358,13 @@ wss.on("connection", (ws) => {
         revealed: false,
         gameOver: false,
         expiresAt,
-        players: new Map([[creatorId, { name, online: true }]]),
+        players: new Map([[creatorId, { name, online: true, role: "product" }]]),
         votes: new Map(),
       };
       sessions.set(sessionId, session);
       scheduleSessionExpiry(sessionId);
       registerPlayerSocket(ws, session, creatorId);
+      void saveSession(session);
       return;
     }
 
@@ -303,6 +372,7 @@ wss.on("connection", (ws) => {
       const sessionId = typeof msg.sessionId === "string" ? msg.sessionId.trim() : "";
       const name = typeof msg.name === "string" ? msg.name.trim().slice(0, 40) : "";
       const existingId = typeof msg.playerId === "string" ? msg.playerId : null;
+      const role = parsePlayerRole(msg.role) ?? "dev";
       if (!sessionId || !name) {
         ws.send(JSON.stringify({ type: "error", message: "Session and name required" }));
         return;
@@ -320,14 +390,18 @@ wss.on("connection", (ws) => {
       let playerId = existingId;
       if (playerId && session.players.has(playerId)) {
         const pl = session.players.get(playerId);
-        if (pl) pl.name = name;
+        if (pl) {
+          pl.name = name;
+          pl.online = true;
+        }
       } else if (playerId) {
-        session.players.set(playerId, { name, online: true });
+        session.players.set(playerId, { name, online: true, role });
       } else {
         playerId = randomUUID();
-        session.players.set(playerId, { name, online: true });
+        session.players.set(playerId, { name, online: true, role });
       }
       registerPlayerSocket(ws, session, playerId);
+      void saveSession(session);
       return;
     }
 
@@ -337,9 +411,23 @@ wss.on("connection", (ws) => {
       return;
     }
     const session = sessions.get(meta.sessionId);
-    if (!session || session.gameOver) return;
+    if (!session || session.gameOver) {
+      sendError(ws, "Session not found");
+      return;
+    }
     if (Date.now() > session.expiresAt) {
       expireSession(meta.sessionId);
+      sendError(ws, "Session not found");
+      return;
+    }
+
+    if (msg.type === "leave") {
+      session.players.delete(meta.playerId);
+      session.votes.delete(meta.playerId);
+      socketMeta.delete(ws);
+      removeFromRoom(meta.sessionId, ws);
+      broadcastSession(meta.sessionId);
+      void saveSession(session);
       return;
     }
 
@@ -348,6 +436,22 @@ wss.on("connection", (ws) => {
       if (pl) {
         pl.brb = msg.brb === true;
         broadcastSession(session.id);
+        void saveSession(session);
+      }
+      return;
+    }
+
+    if (msg.type === "updateName") {
+      const name = typeof msg.name === "string" ? msg.name.trim().slice(0, 40) : "";
+      if (!name) {
+        sendError(ws, "Name required");
+        return;
+      }
+      const pl = session.players.get(meta.playerId);
+      if (pl) {
+        pl.name = name;
+        broadcastSession(session.id);
+        void saveSession(session);
       }
       return;
     }
@@ -356,21 +460,27 @@ wss.on("connection", (ws) => {
       const v = msg.value;
       const allowed = [1, 2, 3, 5, 8, 13];
       if (!allowed.includes(v)) return;
-      if (!session.players.has(meta.playerId)) return;
+      if (!session.players.has(meta.playerId)) {
+        sendError(ws, "Not in a session");
+        return;
+      }
       session.votes.set(meta.playerId, v);
       broadcastSession(session.id);
+      void saveSession(session);
       return;
     }
 
     if (msg.type === "clearVote") {
       session.votes.delete(meta.playerId);
       broadcastSession(session.id);
+      void saveSession(session);
       return;
     }
 
     if (msg.type === "reveal") {
       session.revealed = true;
       broadcastSession(session.id);
+      void saveSession(session);
       return;
     }
 
@@ -378,36 +488,80 @@ wss.on("connection", (ws) => {
       session.revealed = false;
       session.votes.clear();
       broadcastSession(session.id);
+      void saveSession(session);
       return;
     }
+    });
   });
-});
+}
 
-const heartbeatTimer = setInterval(() => {
-  for (const ws of wss.clients) {
-    if (ws.isAlive === false) {
-      try {
-        ws.terminate();
-      } catch {
-        // ignore
-      }
-      continue;
-    }
-    ws.isAlive = false;
-    try {
-      ws.ping();
-    } catch {
-      try {
-        ws.terminate();
-      } catch {
-        // ignore
-      }
-    }
+async function main() {
+  const supabaseCfg = loadSupabaseConfig();
+  if (!supabaseCfg) {
+    console.error(
+      "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — Pointing Showdown requires Supabase."
+    );
+    process.exit(1);
   }
-}, HEARTBEAT_INTERVAL_MS);
+  store = createPointingStore(supabaseCfg);
+  try {
+    await store.hydrateSessions(sessions);
+    for (const sessionId of sessions.keys()) {
+      scheduleSessionExpiry(sessionId);
+    }
+    console.log(`Hydrated ${sessions.size} session(s) from Supabase`);
+  } catch (err) {
+    console.error("Failed to hydrate sessions from Supabase:", err);
+    process.exit(1);
+  }
 
-wss.on("close", () => {
-  clearInterval(heartbeatTimer);
+  const wss = new WebSocketServer({ port: PORT, host: "0.0.0.0" });
+  attachSocketHandlers(wss);
+
+  const heartbeatTimer = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (ws.isAlive === false) {
+        try {
+          ws.terminate();
+        } catch {
+          // ignore
+        }
+        continue;
+      }
+      ws.isAlive = false;
+      try {
+        ws.ping();
+      } catch {
+        try {
+          ws.terminate();
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
+  const cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [sessionId, session] of sessions) {
+      if (!sessionIsLive(session) || now > session.expiresAt) {
+        expireSession(sessionId);
+      }
+    }
+    void store.deleteExpiredSessions().catch((err) => {
+      console.error("Failed to delete expired Supabase sessions:", err);
+    });
+  }, EXPIRED_SESSION_CLEANUP_MS);
+
+  wss.on("close", () => {
+    clearInterval(heartbeatTimer);
+    clearInterval(cleanupTimer);
+  });
+
+  console.log(`Pointing Blackjack server on ws://localhost:${PORT}`);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });
-
-console.log(`Pointing Blackjack server on ws://localhost:${PORT}`);

@@ -8,16 +8,21 @@ Originally extracted from [tyler.cloud](https://github.com/tylerjwoodfin/tyler.c
 
 ## Features
 
-- Create or join a session with a short room code
+- Create or join a session with a short room code (or join anonymously)
+- Product / QA / Dev roles at the table
 - Real-time votes and reveal
 - BRB / away status for players
 - Frequency chart of point distribution
 - Invite link you can copy and share
+- In-session feedback form
+- Session persistence in Supabase (survives server restarts; 2-hour TTL)
 
 ## Quick start
 
 ```bash
 npm install
+# Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (see .env.example),
+# and run the SQL under supabase/migrations/ in your Supabase project.
 npm run dev
 ```
 
@@ -25,6 +30,8 @@ That starts:
 
 - the React app on [http://localhost:3000](http://localhost:3000)
 - the WebSocket session server on `ws://localhost:3333` (proxied in dev as `/pointing-showdown-ws`)
+
+The WebSocket server **requires** Supabase credentials; without them it exits on startup.
 
 ### Scripts
 
@@ -44,7 +51,9 @@ For static hosts (e.g. Cloudflare Pages), set at build time:
 REACT_APP_POINTING_BLACKJACK_WS=wss://your-pointing-ws.example.com
 ```
 
-See `.env.example`. Run `server/pointing-blackjack.mjs` (and optionally the systemd unit example) on a host that can accept WebSocket connections.
+See `.env.example`. Run `server/pointing-blackjack.mjs` (and optionally the systemd unit example) on a host that can accept WebSocket connections. Apply `supabase/migrations/` before the first run.
+
+Feedback from the in-session modal posts to `functions/submit-feedback.ts` (Cloudflare Pages + Resend); set `RESEND_API_KEY`, `FEEDBACK_EMAIL_FROM`, and `FEEDBACK_EMAIL_TO` in the Pages project.
 
 ## Routes
 
