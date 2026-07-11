@@ -4,21 +4,102 @@ export interface Env {
   FEEDBACK_EMAIL_TO: string;
 }
 
+const MAX_MESSAGE_LENGTH = 5000;
+/** Max successful feedback posts per IP within the window. */
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+type RateLimitEntry = {
+  count: number;
+  resetAt: number;
+};
+
+function clientIp(request: Request): string {
+  return request.headers.get("CF-Connecting-IP") ?? "unknown";
+}
+
+function rateLimitCacheKey(ip: string): Request {
+  return new Request(
+    `https://pointy.website/__rate_limit/submit-feedback/${encodeURIComponent(ip)}`
+  );
+}
+
+/**
+ * Fixed-window limit via the Cache API (no KV binding required).
+ * Returns false when the IP is over the limit.
+ */
+async function allowFeedbackRequest(request: Request): Promise<boolean> {
+  const cache = caches.default;
+  const key = rateLimitCacheKey(clientIp(request));
+  const now = Date.now();
+
+  let entry: RateLimitEntry = {
+    count: 0,
+    resetAt: now + RATE_LIMIT_WINDOW_MS,
+  };
+
+  const hit = await cache.match(key);
+  if (hit) {
+    try {
+      const parsed = (await hit.json()) as Partial<RateLimitEntry>;
+      if (
+        typeof parsed.count === "number" &&
+        typeof parsed.resetAt === "number" &&
+        parsed.resetAt > now
+      ) {
+        entry = { count: parsed.count, resetAt: parsed.resetAt };
+      }
+    } catch {
+      // treat as empty window
+    }
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  entry.count += 1;
+  const ttlSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+  await cache.put(
+    key,
+    new Response(JSON.stringify(entry), {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": `public, max-age=${ttlSec}`,
+      },
+    })
+  );
+  return true;
+}
+
 export async function onRequestPost(params: { request: Request; env: Env }) {
   try {
+    if (!(await allowFeedbackRequest(params.request))) {
+      return new Response("Too many feedback submissions. Try again later.", {
+        status: 429,
+        headers: { "Retry-After": "3600" },
+      });
+    }
+
     const data = await params.request.json();
     const customSubject = data.customSubject;
     const message = data.message;
     const contact = data.contact;
     const includeResumeRequest = data.includeResumeRequest;
 
-    if (!message || message.length < 4) {
+    if (!message || typeof message !== "string" || message.trim().length < 4) {
       return new Response("Message too short", { status: 400 });
+    }
+
+    if (message.length > MAX_MESSAGE_LENGTH) {
+      return new Response("Message too long", { status: 400 });
     }
 
     // If resume is requested but no contact info provided, return error
     if (includeResumeRequest && (!contact || contact.trim().length === 0)) {
-      return new Response("Contact information required for resume request", { status: 400 });
+      return new Response("Contact information required for resume request", {
+        status: 400,
+      });
     }
 
     let subject = customSubject || "New Website Feedback";
@@ -26,7 +107,7 @@ export async function onRequestPost(params: { request: Request; env: Env }) {
       subject += " - Resume Request";
     }
 
-    const clientIp = params.request.headers.get("CF-Connecting-IP") ?? "Unknown";
+    const ip = clientIp(params.request);
 
     const emailBodyArray = [
       "Message:",
@@ -36,7 +117,7 @@ export async function onRequestPost(params: { request: Request; env: Env }) {
       contact || "Not provided",
       "",
       "IP:",
-      clientIp
+      ip,
     ];
 
     if (includeResumeRequest) {
@@ -49,7 +130,7 @@ export async function onRequestPost(params: { request: Request; env: Env }) {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          "Authorization": "Bearer " + params.env.RESEND_API_KEY,
+          Authorization: "Bearer " + params.env.RESEND_API_KEY,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
