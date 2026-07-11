@@ -63,11 +63,11 @@ Same split as the former tyler.cloud hosting:
 
 ### 2. Cloudflare Pages
 
-1. **Workers & Pages** → **Create** → connect `tylerjwoodfin/pointy.website`.
-2. Build: `npm run build` · output: `build` · root: `/`.
-3. Build env: `REACT_APP_POINTING_BLACKJACK_WS` = `wss://ws.pointy.website`
-4. Custom domains: `pointy.website` and `www.pointy.website`.
-5. Pages Function secrets (feedback modal): `RESEND_API_KEY`, `FEEDBACK_EMAIL_FROM`, `FEEDBACK_EMAIL_TO`.
+Deployments are automatic via GitHub Actions (`.github/workflows/deploy-pages.yml`) on every push to `main`.
+
+Pages project: `pointy-website` · build env bakes in `REACT_APP_POINTING_BLACKJACK_WS=wss://ws.pointy.website`.
+
+Function secrets (feedback): `RESEND_API_KEY`, `FEEDBACK_EMAIL_FROM`, `FEEDBACK_EMAIL_TO`.
 
 ### 3. WebSocket tunnel + Node server
 
