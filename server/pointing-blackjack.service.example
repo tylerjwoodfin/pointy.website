@@ -7,7 +7,7 @@
 # Point production builds at this server with REACT_APP_POINTING_BLACKJACK_WS=wss://...
 
 [Unit]
-Description=Pointing Showdown WebSocket server
+Description=Pointy WebSocket server
 After=network.target
 
 [Service]

@@ -1,6 +1,6 @@
 # pointy.website
 
-**Pointing Showdown** — a simple, free and open-source sprint pointing tool.
+**Pointy** — a simple, free and open-source sprint pointing tool.
 
 Host a live table, share a room code or link, and point stories together in real time over WebSockets.
 
@@ -29,7 +29,7 @@ npm run dev
 That starts:
 
 - the React app on [http://localhost:3000](http://localhost:3000)
-- the WebSocket session server on `ws://localhost:3333` (proxied in dev as `/pointing-showdown-ws`)
+- the WebSocket session server on `ws://localhost:3333` (proxied in dev as `/pointy-ws`)
 
 The WebSocket server **requires** Supabase credentials; without them it exits on startup.
 
@@ -45,7 +45,7 @@ The WebSocket server **requires** Supabase credentials; without them it exits on
 
 ## Production (Cloudflare)
 
-Same split as tyler.cloud’s pointing-showdown:
+Same split as the former tyler.cloud hosting:
 
 | Piece | Host | How |
 |-------|------|-----|
@@ -71,7 +71,7 @@ Same split as tyler.cloud’s pointing-showdown:
 
 ### 3. WebSocket tunnel + Node server
 
-On the host (already running pointing-showdown):
+On the host (already running the Pointy WebSocket service):
 
 ```bash
 # After the zone is Active — routes DNS + refreshes tunnel ingress:
@@ -90,8 +90,8 @@ See `.env.example` and `server/pointing-blackjack.service.example`.
 
 | Path | Screen |
 |------|--------|
-| `/` or `/pointing-showdown` | Lobby |
-| `/:sessionId` or `/pointing-showdown/:sessionId` | Live session |
+| `/` or `/pointing-showdown` (legacy) | Lobby |
+| `/:sessionId` or `/pointing-showdown/:sessionId` (legacy) | Live session |
 
 ## License
 

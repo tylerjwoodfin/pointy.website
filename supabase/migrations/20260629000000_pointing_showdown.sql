@@ -1,4 +1,4 @@
--- Pointing Showdown session persistence (TJW-271).
+-- Pointy session persistence (TJW-271).
 -- Run in the Supabase SQL editor or via `supabase db push`.
 
 create table if not exists public.pointing_sessions (

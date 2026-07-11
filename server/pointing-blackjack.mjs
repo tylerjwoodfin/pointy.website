@@ -1,5 +1,5 @@
 /**
- * Real-time session server for Pointing Blackjack.
+ * Real-time session server for Pointy.
  * Run: node server/pointing-blackjack.mjs
  * Port: POINTING_BLACKJACK_PORT or 3333
  *
@@ -499,7 +499,7 @@ async function main() {
   const supabaseCfg = loadSupabaseConfig();
   if (!supabaseCfg) {
     console.error(
-      "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — Pointing Showdown requires Supabase."
+      "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — Pointy requires Supabase."
     );
     process.exit(1);
   }
@@ -558,7 +558,7 @@ async function main() {
     clearInterval(cleanupTimer);
   });
 
-  console.log(`Pointing Blackjack server on ws://localhost:${PORT}`);
+  console.log(`Pointy server on ws://localhost:${PORT}`);
 }
 
 main().catch((err) => {

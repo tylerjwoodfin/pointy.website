@@ -2,16 +2,19 @@ import React, { useEffect, useRef, useState } from "react";
 
 type ModalPhase = "form" | "submitting" | "thanks" | "error";
 
-interface PointingShowdownFeedbackModalProps {
+interface PointyFeedbackModalProps {
   isOpen: boolean;
   sessionId?: string;
   playerName?: string;
   onClose: () => void;
 }
 
-export const PointingShowdownFeedbackModal: React.FC<
-  PointingShowdownFeedbackModalProps
-> = ({ isOpen, sessionId, playerName, onClose }) => {
+export const PointyFeedbackModal: React.FC<PointyFeedbackModalProps> = ({
+  isOpen,
+  sessionId,
+  playerName,
+  onClose,
+}) => {
   const [message, setMessage] = useState("");
   const [phase, setPhase] = useState<ModalPhase>("form");
   const [errorText, setErrorText] = useState("");
@@ -53,7 +56,7 @@ export const PointingShowdownFeedbackModal: React.FC<
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: fullMessage,
-          customSubject: "Pointing Showdown Feedback",
+          customSubject: "Pointy Feedback",
         }),
       });
 

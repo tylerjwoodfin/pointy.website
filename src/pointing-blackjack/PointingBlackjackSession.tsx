@@ -10,7 +10,7 @@ import {
 } from "./PointingBlackjackProvider";
 import { lobbyPath, sessionPath } from "./paths";
 import { isValidRoomCode } from "./roomCode";
-import { PointingShowdownFeedbackModal } from "./PointingShowdownFeedbackModal";
+import { PointyFeedbackModal } from "./PointyFeedbackModal";
 import { uniqueCodename } from "./codename";
 import type { PlayerRole, PlayerRow, VoteValue } from "./types";
 
@@ -408,7 +408,7 @@ export const PointingBlackjackSession: React.FC = () => {
             </p>
             <p className="pb-muted">
               If the link is right, the app couldn&apos;t open the live WebSocket (
-              <code className="pb-code">/pointing-showdown-ws</code>). For local dev, run{" "}
+              <code className="pb-code">/pointy-ws</code>). For local dev, run{" "}
               <code className="pb-code">npm run dev</code>, or{" "}
               <code className="pb-code">npm start</code> and{" "}
               <code className="pb-code">npm run server</code> in two terminals.
@@ -572,7 +572,7 @@ export const PointingBlackjackSession: React.FC = () => {
             </button>
           </div>
         </div>
-        <PointingShowdownFeedbackModal
+        <PointyFeedbackModal
           isOpen={feedbackOpen}
           sessionId={state.sessionId}
           playerName={state.players.find((p) => p.id === state.myPlayerId)?.name}
@@ -855,7 +855,7 @@ export const PointingBlackjackSession: React.FC = () => {
           </section>
         )}
       </>
-      <PointingShowdownFeedbackModal
+      <PointyFeedbackModal
         isOpen={feedbackOpen}
         sessionId={state.sessionId}
         playerName={myPlayer?.name}

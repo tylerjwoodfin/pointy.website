@@ -4,7 +4,7 @@ import {
   PointingBlackjackProvider,
   usePointingBlackjack,
 } from "./PointingBlackjackProvider";
-import { POINTING_SHOWDOWN_TITLE, swapDocumentTitle } from "./documentTitle";
+import { POINTY_TITLE, swapDocumentTitle } from "./documentTitle";
 import { inLiveSession, lobbyPath } from "./paths";
 import "./pointing-blackjack.scss";
 
@@ -15,7 +15,7 @@ const PointingBlackjackHeader: React.FC<{ showTagline: boolean }> = ({
   const { leaveTable } = usePointingBlackjack();
   return (
     <header className="pointing-blackjack__header">
-      <h1 className="pointing-blackjack__title">Pointing Showdown</h1>
+      <h1 className="pointing-blackjack__title">Pointy</h1>
       {showTagline ? (
         <p className="pointing-blackjack__tagline">
           A FOSS sprint pointing tool —{" "}
@@ -41,7 +41,7 @@ export const PointingBlackjackLayout: React.FC = () => {
   const showTagline = !inLiveSession(pathname);
 
   useEffect(() => {
-    return swapDocumentTitle(POINTING_SHOWDOWN_TITLE);
+    return swapDocumentTitle(POINTY_TITLE);
   }, []);
 
   return (

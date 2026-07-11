@@ -2,7 +2,7 @@
   "name": "pointy.website",
   "version": "0.1.0",
   "private": true,
-  "description": "Pointing Showdown — a simple, FOSS sprint pointing tool",
+  "description": "Pointy — a simple, FOSS sprint pointing tool",
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.5.2",
     "@fortawesome/free-solid-svg-icons": "^6.5.2",

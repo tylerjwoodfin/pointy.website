@@ -2,10 +2,10 @@ const { createProxyMiddleware } = require("http-proxy-middleware");
 
 const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
 
-const POINTING_WS_PATH = "/pointing-showdown-ws";
+const POINTING_WS_PATH = "/pointy-ws";
 
 /**
- * Dev-only HTTP handler + WebSocket upgrade for Pointing Blackjack.
+ * Dev-only HTTP handler + WebSocket upgrade for Pointy.
  *
  * The first argument **must** be the path context. If you pass only `{ target }`,
  * http-proxy-middleware defaults context to `/` and proxies **every** upgrade —
