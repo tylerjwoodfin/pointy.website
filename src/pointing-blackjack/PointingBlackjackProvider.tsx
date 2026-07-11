@@ -11,6 +11,7 @@ import { whenWsConnectAllowed } from "./wsDefer";
 import { pointingBlackjackWsUrl } from "./wsUrl";
 
 const STORAGE_PREFIX = "pointingBlackjack:";
+const RECONNECT_DELAY_MS = 1_000;
 
 function storageKey(sessionId: string) {
   return `${STORAGE_PREFIX}${sessionId}`;
@@ -77,6 +78,9 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
   children,
 }) => {
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const closedByUserRef = useRef(false);
+  const resumedSocketsRef = useRef(new WeakSet<WebSocket>());
   const sessionExistsWaiters = useRef<
     Map<
       string,
@@ -129,6 +133,50 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
     if (!me) return;
     writeStoredIdentity(s.sessionId, s.myPlayerId, me.name);
   }, []);
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current !== null) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
+
+  const buildResumePayload = useCallback(() => {
+    const current = stateRef.current;
+    if (!current || current.gameOver) return null;
+    const stored = readStoredIdentity(current.sessionId);
+    if (!stored) return null;
+    return {
+      type: "join" as const,
+      sessionId: current.sessionId,
+      name: stored.name,
+      playerId: stored.playerId,
+    };
+  }, []);
+
+  const resumeSocketSession = useCallback(
+    (ws: WebSocket) => {
+      if (resumedSocketsRef.current.has(ws)) return false;
+      const payload = buildResumePayload();
+      if (!payload) return false;
+      ws.send(JSON.stringify(payload));
+      resumedSocketsRef.current.add(ws);
+      return true;
+    },
+    [buildResumePayload]
+  );
+
+  const scheduleReconnect = useCallback(() => {
+    if (reconnectTimerRef.current !== null) return;
+    const current = stateRef.current;
+    if (!current || current.gameOver) return;
+    reconnectTimerRef.current = window.setTimeout(() => {
+      reconnectTimerRef.current = null;
+      ensureOpenSocketRef.current();
+    }, RECONNECT_DELAY_MS);
+  }, []);
+
+  const ensureOpenSocketRef = useRef<() => WebSocket | null>(() => null);
 
   const attachHandlers = useCallback(
     (ws: WebSocket) => {
@@ -193,13 +241,23 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
         }
         if (stillCurrent) {
           setConnectionStatus("idle");
+          if (closedByUserRef.current) {
+            closedByUserRef.current = false;
+          } else {
+            scheduleReconnect();
+          }
         }
       };
       ws.onerror = () => {
         setConnectionStatus("error");
       };
     },
-    [persistIdentity, flushSessionExistsWaiters, flushAllSessionExistsWaiters]
+    [
+      persistIdentity,
+      flushSessionExistsWaiters,
+      flushAllSessionExistsWaiters,
+      scheduleReconnect,
+    ]
   );
 
   const ensureOpenSocket = useCallback((): WebSocket | null => {
@@ -213,23 +271,30 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
     if (existing && existing.readyState === WebSocket.CLOSING) {
       return existing;
     }
+    clearReconnectTimer();
+    closedByUserRef.current = false;
     setConnectionStatus("connecting");
     setLastError(null);
     const ws = new WebSocket(pointingBlackjackWsUrl());
     wsRef.current = ws;
     ws.onopen = () => {
       setConnectionStatus("open");
+      resumeSocketSession(ws);
     };
     attachHandlers(ws);
     return ws;
-  }, [attachHandlers]);
+  }, [attachHandlers, clearReconnectTimer, resumeSocketSession]);
+
+  ensureOpenSocketRef.current = ensureOpenSocket;
 
   useEffect(() => {
     return () => {
+      clearReconnectTimer();
+      closedByUserRef.current = true;
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, []);
+  }, [clearReconnectTimer]);
 
   const sendWhenReady = useCallback(
     (payload: object, onCant?: () => void) => {
@@ -237,6 +302,16 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
         await whenWsConnectAllowed();
         const trySend = (ws: WebSocket) => {
           if (ws.readyState === WebSocket.OPEN) {
+            const messageType =
+              "type" in payload && typeof payload.type === "string" ? payload.type : null;
+            if (
+              messageType !== "create" &&
+              messageType !== "join" &&
+              messageType !== "sessionExists" &&
+              messageType !== "listSessions"
+            ) {
+              resumeSocketSession(ws);
+            }
             ws.send(JSON.stringify(payload));
             return true;
           }
@@ -277,7 +352,7 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
         ws.addEventListener("open", onOpen);
       })();
     },
-    [ensureOpenSocket]
+    [ensureOpenSocket, resumeSocketSession]
   );
 
   sendWhenReadyRef.current = sendWhenReady;
@@ -388,12 +463,14 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
   }, [sendWhenReady]);
 
   const leaveTable = useCallback(() => {
+    clearReconnectTimer();
+    closedByUserRef.current = true;
     wsRef.current?.close();
     wsRef.current = null;
     setState(null);
     setConnectionStatus("idle");
     setLastError(null);
-  }, []);
+  }, [clearReconnectTimer]);
 
   const setBrb = useCallback(
     (brb: boolean) => {
