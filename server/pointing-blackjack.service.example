@@ -4,7 +4,7 @@
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now pointing-blackjack
 #
-# Requires cloudflared tunnel (pointing-showdown.yml) to publish localhost:3333 as wss://pointing-ws.tyler.cloud.
+# Point production builds at this server with REACT_APP_POINTING_BLACKJACK_WS=wss://...
 
 [Unit]
 Description=Pointing Showdown WebSocket server
@@ -13,7 +13,7 @@ After=network.target
 [Service]
 Type=simple
 User=YOUR_UNIX_USER
-WorkingDirectory=/home/YOUR_UNIX_USER/git/tyler.cloud
+WorkingDirectory=/home/YOUR_UNIX_USER/git/pointy.website
 ExecStart=/usr/bin/node server/pointing-blackjack.mjs
 Restart=on-failure
 RestartSec=5

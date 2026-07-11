@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   fetchActiveSessions,
   type ActiveSessionSummary,
 } from "./fetchActiveSessions";
 import { usePointingBlackjack } from "./PointingBlackjackProvider";
+import { sessionPath } from "./paths";
 
 export const PointingBlackjackLobby: React.FC = () => {
   const {
@@ -16,6 +17,7 @@ export const PointingBlackjackLobby: React.FC = () => {
     connectionStatus,
   } = usePointingBlackjack();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [startName, setStartName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [joinName, setJoinName] = useState("");
@@ -49,9 +51,9 @@ export const PointingBlackjackLobby: React.FC = () => {
 
   useEffect(() => {
     if (state?.sessionId && !state.gameOver) {
-      navigate(`/pointing-showdown/${state.sessionId}`, { replace: true });
+      navigate(sessionPath(pathname, state.sessionId), { replace: true });
     }
-  }, [state, navigate]);
+  }, [state, navigate, pathname]);
 
   const onStart = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +74,7 @@ export const PointingBlackjackLobby: React.FC = () => {
     if (state?.sessionId && state.sessionId !== sessionId) {
       leaveTable();
     }
-    navigate(`/pointing-showdown/${sessionId}`);
+    navigate(sessionPath(pathname, sessionId));
   };
 
   return (

@@ -5,12 +5,8 @@ import {
   usePointingBlackjack,
 } from "./PointingBlackjackProvider";
 import { POINTING_SHOWDOWN_TITLE, swapDocumentTitle } from "./documentTitle";
+import { inLiveSession, lobbyPath } from "./paths";
 import "./pointing-blackjack.scss";
-
-const inLiveSession = (pathname: string) => {
-  const segs = pathname.replace(/\/+$/, "").split("/");
-  return segs.length >= 3 && segs[1] === "pointing-showdown";
-};
 
 const PointingBlackjackHeader: React.FC<{ showTagline: boolean }> = ({
   showTagline,
@@ -22,14 +18,15 @@ const PointingBlackjackHeader: React.FC<{ showTagline: boolean }> = ({
       <h1 className="pointing-blackjack__title">Pointing Showdown</h1>
       {showTagline ? (
         <p className="pointing-blackjack__tagline">
-          Powered by <a href="https://www.tyler.cloud">tyler.cloud</a>;{" "}
+          A FOSS sprint pointing tool —{" "}
+          <a href="https://github.com/tylerjwoodfin/pointy.website">source</a>;{" "}
           <a href="https://venmo.com/tylerjwoodfin?txn=pay">buy me a chai latte</a>?
         </p>
       ) : null}
       {inLiveSession(pathname) ? (
         <Link
           className="pointing-blackjack__back"
-          to="/pointing-showdown"
+          to={lobbyPath(pathname)}
           onClick={() => leaveTable()}
         >
           ← Lobby

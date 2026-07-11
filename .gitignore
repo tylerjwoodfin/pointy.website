@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Production build
+build/
+
+# Environment / secrets
+.env
+.env.*
+!.env*.example
+
+# Logs & debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
+
+# Test / coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Optional local overrides
+.eslintcache

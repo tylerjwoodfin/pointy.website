@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { POINT_VALUES, cardLabel, formatVoteDisplay } from "./cards";
 import { FrequencyBars } from "./FrequencyBars";
 import {
   readStoredIdentity,
   usePointingBlackjack,
 } from "./PointingBlackjackProvider";
+import { lobbyPath, sessionPath } from "./paths";
 import { isValidRoomCode } from "./roomCode";
 import type { VoteValue } from "./types";
 
@@ -123,6 +124,7 @@ function PlayerStatusDot({ online, brb }: { online: boolean; brb?: boolean }) {
 export const PointingBlackjackSession: React.FC = () => {
   const { sessionId: paramId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const {
     state,
     lastError,
@@ -155,8 +157,8 @@ export const PointingBlackjackSession: React.FC = () => {
 
   const sessionUrl = useMemo(() => {
     if (!paramId) return "";
-    return `${window.location.origin}/pointing-showdown/${paramId}`;
-  }, [paramId]);
+    return `${window.location.origin}${sessionPath(pathname, paramId)}`;
+  }, [paramId, pathname]);
 
   const copyLink = useCallback(() => {
     if (!sessionUrl) return;
@@ -236,7 +238,7 @@ export const PointingBlackjackSession: React.FC = () => {
       sessionStorage.removeItem(`pointingBlackjack:${paramId}`);
     }
     leaveTable();
-    navigate("/pointing-showdown");
+    navigate(lobbyPath(pathname));
   };
 
   const invalidRoomLinkSection = (
@@ -244,9 +246,8 @@ export const PointingBlackjackSession: React.FC = () => {
       <section className="pb-panel">
         <h2>Invalid room link</h2>
         <p className="pb-muted">
-          The piece of the URL after <code className="pb-code">/pointing-showdown/</code> must
-          be a room code: 4–64 characters, only letters, numbers, dashes, and underscores (no
-          spaces, dots, or slashes).
+          The room code in the URL must be 4–64 characters, only letters, numbers,
+          dashes, and underscores (no spaces, dots, or slashes).
         </p>
         <button type="button" className="pb-button pb-button--primary" onClick={onLeave}>
           Back to lobby
@@ -288,9 +289,9 @@ export const PointingBlackjackSession: React.FC = () => {
             <p className="pb-muted">
               If the link is right, the app couldn&apos;t open the live WebSocket (
               <code className="pb-code">/pointing-showdown-ws</code>). For local dev, run{" "}
-              <code className="pb-code">npm run dev:blackjack</code>, or{" "}
+              <code className="pb-code">npm run dev</code>, or{" "}
               <code className="pb-code">npm start</code> and{" "}
-              <code className="pb-code">npm run server:blackjack</code> in two terminals.
+              <code className="pb-code">npm run server</code> in two terminals.
             </p>
             <div className="pb-card-actions">
               <button
