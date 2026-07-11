@@ -1,0 +1,24 @@
+# Example systemd unit — copy to /etc/systemd/system/pointing-blackjack.service (adjust paths/user).
+#
+#   sudo cp server/pointing-blackjack.service.example /etc/systemd/system/pointing-blackjack.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now pointing-blackjack
+#
+# Requires cloudflared tunnel (pointing-showdown.yml) to publish localhost:3333 as wss://pointing-ws.tyler.cloud.
+
+[Unit]
+Description=Pointing Showdown WebSocket server
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_UNIX_USER
+WorkingDirectory=/home/YOUR_UNIX_USER/git/tyler.cloud
+ExecStart=/usr/bin/node server/pointing-blackjack.mjs
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=POINTING_BLACKJACK_PORT=3333
+
+[Install]
+WantedBy=multi-user.target
