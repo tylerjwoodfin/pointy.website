@@ -115,7 +115,7 @@ export const PointyFeedbackModal: React.FC<PointyFeedbackModalProps> = ({
                   className="pb-input pb-feedback-modal__textarea"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Enter your anonymous feedback..."
+                  placeholder="Enter your feedback..."
                   rows={5}
                   disabled={phase === "submitting"}
                   required

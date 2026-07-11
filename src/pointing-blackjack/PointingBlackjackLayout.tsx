@@ -19,7 +19,7 @@ const PointingBlackjackHeader: React.FC<{ showTagline: boolean }> = ({
       {showTagline ? (
         <p className="pointing-blackjack__tagline">
           A FOSS sprint pointing tool —{" "}
-          <a href="https://tyler.cloud">check out my other projects</a>;{" "}
+          <a href="https://tyler.cloud">tyler.cloud</a>;{" "}
           <a href="https://github.com/tylerjwoodfin/pointy.website">source</a>;{" "}
           <a href="https://venmo.com/tylerjwoodfin?txn=pay">buy me a chai latte</a>?
         </p>

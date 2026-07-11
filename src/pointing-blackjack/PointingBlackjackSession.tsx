@@ -440,6 +440,14 @@ export const PointingBlackjackSession: React.FC = () => {
                   type="button"
                   className="pb-button pb-button--ghost"
                   disabled={connectionStatus === "connecting"}
+                  onClick={() => startMissingAs("dev")}
+                >
+                  Start as Dev
+                </button>
+                <button
+                  type="button"
+                  className="pb-button pb-button--primary"
+                  disabled={connectionStatus === "connecting"}
                   onClick={() => startMissingAs("product")}
                 >
                   Start as Product
@@ -451,14 +459,6 @@ export const PointingBlackjackSession: React.FC = () => {
                   onClick={() => startMissingAs("qa")}
                 >
                   Start as QA
-                </button>
-                <button
-                  type="button"
-                  className="pb-button pb-button--ghost"
-                  disabled={connectionStatus === "connecting"}
-                  onClick={() => startMissingAs("dev")}
-                >
-                  Start as Dev
                 </button>
               </div>
             </div>
@@ -488,11 +488,11 @@ export const PointingBlackjackSession: React.FC = () => {
             <div className="pb-join-options__buttons">
               <button
                 type="button"
-                className="pb-button pb-button--ghost"
+                className="pb-button pb-button--primary"
                 disabled={connectionStatus === "connecting"}
-                onClick={joinAsProduct}
+                onClick={joinAsDev}
               >
-                Join as Product
+                Join as Dev
               </button>
               <button
                 type="button"
@@ -506,9 +506,9 @@ export const PointingBlackjackSession: React.FC = () => {
                 type="button"
                 className="pb-button pb-button--ghost"
                 disabled={connectionStatus === "connecting"}
-                onClick={joinAsDev}
+                onClick={joinAsProduct}
               >
-                Join as Dev
+                Join as Product
               </button>
             </div>
           </div>
@@ -589,10 +589,6 @@ export const PointingBlackjackSession: React.FC = () => {
             {voted ? (
               <span className="pb-table__vote pb-table__vote--yes">
                 Voted
-                <span className="pb-table__vote-hint" aria-hidden>
-                  {" "}
-                  · face down
-                </span>
               </span>
             ) : brb ? (
               <span className="pb-table__vote pb-table__vote--brb">BRB</span>
@@ -684,15 +680,30 @@ export const PointingBlackjackSession: React.FC = () => {
             >
               Feedback
             </button>
-            <button type="button" className="pb-button pb-button--ghost" onClick={onLeave}>
-              Leave table
+            <button
+              type="button"
+              className="pb-button pb-button--ghost pb-button--leave"
+              onClick={onLeave}
+            >
+              Leave
             </button>
           </div>
         </div>
 
+
         {!state.revealed ? (
           <div className="pb-voting-layout">
             <div className="pb-voting-layout__sidebar">
+              <div className="pb-voting-layout__actions pb-card-actions">
+                <button
+                  type="button"
+                  className="pb-button pb-button--accent"
+                  onClick={reveal}
+                >
+                  Reveal cards
+                </button>
+              </div>
+
               {myPlayer ? (
                 <YouCard
                   name={myPlayer.name}
@@ -703,9 +714,6 @@ export const PointingBlackjackSession: React.FC = () => {
 
               <section className="pb-panel pb-players">
                 <h2>Players</h2>
-                <p className="pb-muted pb-players__hint">
-                  Points stay secret until someone reveals the cards.
-                </p>
                 <div className="pb-table-wrap">
                   <table className="pb-table">
                     <thead>
@@ -720,7 +728,7 @@ export const PointingBlackjackSession: React.FC = () => {
                       ) : (
                         <tr>
                           <td colSpan={2} className="pb-muted">
-                            No QA or Dev players yet.
+                            No Dev or QA players yet.
                           </td>
                         </tr>
                       )}
@@ -755,16 +763,6 @@ export const PointingBlackjackSession: React.FC = () => {
                 </p>
               ) : null}
             </section>
-
-            <div className="pb-voting-layout__actions pb-card-actions">
-              <button
-                type="button"
-                className="pb-button pb-button--accent"
-                onClick={reveal}
-              >
-                Reveal cards
-              </button>
-            </div>
           </div>
         ) : (
           <section className="pb-panel pb-revealed">

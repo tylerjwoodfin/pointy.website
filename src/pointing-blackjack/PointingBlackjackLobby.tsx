@@ -33,9 +33,17 @@ export const PointingBlackjackLobby: React.FC = () => {
               type="button"
               className="pb-button pb-button--ghost"
               disabled={busy}
+              onClick={() => startAs("dev")}
+            >
+              I'm a Dev
+            </button>
+            <button
+              type="button"
+              className="pb-button pb-button--primary"
+              disabled={busy}
               onClick={() => startAs("product")}
             >
-              Start as Product
+              I'm a Product Owner
             </button>
             <button
               type="button"
@@ -43,15 +51,7 @@ export const PointingBlackjackLobby: React.FC = () => {
               disabled={busy}
               onClick={() => startAs("qa")}
             >
-              Start as QA
-            </button>
-            <button
-              type="button"
-              className="pb-button pb-button--ghost"
-              disabled={busy}
-              onClick={() => startAs("dev")}
-            >
-              Start as Dev
+              I'm a QA Engineer
             </button>
           </div>
         </div>
