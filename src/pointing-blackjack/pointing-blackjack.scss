@@ -865,56 +865,6 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   font-size: 14px;
 }
 
-.pb-session-list {
-  list-style: none;
-  padding: 0;
-  margin: 12px 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-
-  &__loading {
-    margin-top: 8px;
-    margin-bottom: 0;
-  }
-
-  &__row {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 12px 14px;
-    border-radius: 10px;
-    border: 1px solid $pb-border;
-    background: rgba(0, 0, 0, 0.2);
-    color: $pb-text;
-    font-size: 16px;
-    cursor: pointer;
-    text-align: left;
-    transition: box-shadow 0.18s ease, transform 0.14s ease;
-
-    &:not(:disabled):hover {
-      box-shadow: $pb-glow-green, $pb-glow-green-lg;
-      transform: translateY(-1px);
-    }
-  }
-
-  &__count {
-    color: $pb-muted;
-    font-size: 15px;
-    white-space: nowrap;
-  }
-
-  &__refresh {
-    margin-top: 14px;
-  }
-}
-
-.pb-panel--sessions {
-  margin-bottom: 4px;
-}
-
 .pb-game-over {
   text-align: center;
   padding: 48px 24px;

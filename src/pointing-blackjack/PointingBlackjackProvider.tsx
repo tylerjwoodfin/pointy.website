@@ -321,8 +321,7 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
             if (
               messageType !== "create" &&
               messageType !== "join" &&
-              messageType !== "sessionExists" &&
-              messageType !== "listSessions"
+              messageType !== "sessionExists"
             ) {
               resumeSocketSession(ws);
             }
