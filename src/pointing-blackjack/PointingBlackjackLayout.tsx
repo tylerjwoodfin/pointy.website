@@ -26,7 +26,7 @@ const PointingBlackjackHeader: React.FC<{ showTagline: boolean }> = ({
       {inLiveSession(pathname) ? (
         <Link
           className="pointing-blackjack__back"
-          to={lobbyPath(pathname)}
+          to={lobbyPath()}
           onClick={() => leaveTable()}
         >
           ← Lobby

@@ -12,10 +12,6 @@ const App: React.FC = () => {
           <Route index element={<PointingBlackjackLobby />} />
           <Route path=":sessionId" element={<PointingBlackjackSession />} />
         </Route>
-        <Route path="/pointing-showdown" element={<PointingBlackjackLayout />}>
-          <Route index element={<PointingBlackjackLobby />} />
-          <Route path=":sessionId" element={<PointingBlackjackSession />} />
-        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

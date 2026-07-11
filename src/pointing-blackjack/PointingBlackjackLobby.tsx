@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   fetchActiveSessions,
   type ActiveSessionSummary,
@@ -17,7 +17,6 @@ export const PointingBlackjackLobby: React.FC = () => {
     connectionStatus,
   } = usePointingBlackjack();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   const [startName, setStartName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [joinName, setJoinName] = useState("");
@@ -51,9 +50,9 @@ export const PointingBlackjackLobby: React.FC = () => {
 
   useEffect(() => {
     if (state?.sessionId && !state.gameOver) {
-      navigate(sessionPath(pathname, state.sessionId), { replace: true });
+      navigate(sessionPath(state.sessionId), { replace: true });
     }
-  }, [state, navigate, pathname]);
+  }, [state, navigate]);
 
   const onStart = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,7 +73,7 @@ export const PointingBlackjackLobby: React.FC = () => {
     if (state?.sessionId && state.sessionId !== sessionId) {
       leaveTable();
     }
-    navigate(sessionPath(pathname, sessionId));
+    navigate(sessionPath(sessionId));
   };
 
   return (

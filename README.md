@@ -90,8 +90,8 @@ See `.env.example` and `server/pointing-blackjack.service.example`.
 
 | Path | Screen |
 |------|--------|
-| `/` or `/pointing-showdown` (legacy) | Lobby |
-| `/:sessionId` or `/pointing-showdown/:sessionId` (legacy) | Live session |
+| `/` | Lobby |
+| `/:sessionId` | Live session |
 
 ## License
 
