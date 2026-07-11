@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCheck, faLink } from "@fortawesome/free-solid-svg-icons";
 import { POINT_VALUES, cardLabel, formatVoteDisplay } from "./cards";
@@ -211,7 +211,6 @@ function YouCard({
 export const PointingBlackjackSession: React.FC = () => {
   const { sessionId: paramId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   const {
     state,
     lastError,
@@ -249,8 +248,8 @@ export const PointingBlackjackSession: React.FC = () => {
 
   const sessionUrl = useMemo(() => {
     if (!paramId) return "";
-    return `${window.location.origin}${sessionPath(pathname, paramId)}`;
-  }, [paramId, pathname]);
+    return `${window.location.origin}${sessionPath(paramId)}`;
+  }, [paramId]);
 
   const copyLink = useCallback(() => {
     if (!sessionUrl) return;
@@ -358,7 +357,7 @@ export const PointingBlackjackSession: React.FC = () => {
       sessionStorage.removeItem(`pointingBlackjack:${paramId}`);
     }
     leaveTable();
-    navigate(lobbyPath(pathname));
+    navigate(lobbyPath());
   };
 
   const invalidRoomLinkSection = (
