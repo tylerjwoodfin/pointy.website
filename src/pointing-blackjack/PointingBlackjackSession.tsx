@@ -126,6 +126,13 @@ function PlayerStatusDot({ online, brb }: { online: boolean; brb?: boolean }) {
 }
 
 function RoleFlair({ role }: { role?: PlayerRole }) {
+  if (role === "product") {
+    return (
+      <span className="pb-flair pb-flair--product" aria-label="Product">
+        Product
+      </span>
+    );
+  }
   if (role === "qa") {
     return (
       <span className="pb-flair pb-flair--qa" aria-label="QA">
@@ -228,9 +235,6 @@ export const PointingBlackjackSession: React.FC = () => {
     connectionStatus,
   } = usePointingBlackjack();
 
-  const [joinName, setJoinName] = useState("");
-  const [productJoinSelected, setProductJoinSelected] = useState(false);
-  const productNameInputRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const autoJoinTried = useRef(false);
@@ -266,13 +270,7 @@ export const PointingBlackjackSession: React.FC = () => {
 
   useEffect(() => {
     autoJoinTried.current = false;
-    setProductJoinSelected(false);
   }, [paramId]);
-
-  useEffect(() => {
-    if (!productJoinSelected) return;
-    productNameInputRef.current?.focus();
-  }, [productJoinSelected]);
 
   useEffect(() => {
     if (!paramId) return;
@@ -320,19 +318,11 @@ export const PointingBlackjackSession: React.FC = () => {
     clearLastError();
   }, [lastError, roomPhase, clearLastError]);
 
-  const selectProductJoin = useCallback(() => {
-    setProductJoinSelected(true);
-  }, []);
-
-  const confirmProductJoin = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!paramId || !joinName.trim()) return;
-      autoJoinTried.current = true;
-      joinSession(paramId, joinName, { role: "product" });
-    },
-    [paramId, joinName, joinSession]
-  );
+  const joinAsProduct = useCallback(() => {
+    if (!paramId) return;
+    autoJoinTried.current = true;
+    joinSession(paramId, uniqueCodename(sessionPlayerNames), { role: "product" });
+  }, [paramId, joinSession, sessionPlayerNames]);
 
   const joinAsQa = useCallback(() => {
     if (!paramId) return;
@@ -346,11 +336,13 @@ export const PointingBlackjackSession: React.FC = () => {
     joinSession(paramId, uniqueCodename(sessionPlayerNames), { role: "dev" });
   }, [paramId, joinSession, sessionPlayerNames]);
 
-  const onStartTable = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!paramId) return;
-    createSession(joinName, paramId);
-  };
+  const startMissingAs = useCallback(
+    (role: PlayerRole) => {
+      if (!paramId) return;
+      createSession(uniqueCodename([]), { sessionId: paramId, role });
+    },
+    [paramId, createSession]
+  );
 
   const onLeave = () => {
     if (paramId) {
@@ -442,27 +434,34 @@ export const PointingBlackjackSession: React.FC = () => {
               Room <strong className="pb-code">{paramId}</strong> isn&apos;t active. You can
               start it and keep this exact link.
             </p>
-          <form onSubmit={onStartTable} className="pb-form">
-            <label className="pb-label">
-              Your name (Product)
-              <input
-                className="pb-input"
-                value={joinName}
-                onChange={(e) => setJoinName(e.target.value)}
-                placeholder="Product owner"
-                maxLength={40}
-                autoComplete="nickname"
-                autoFocus
-              />
-            </label>
-              <button
-                type="submit"
-                className="pb-button pb-button--primary"
-                disabled={!joinName.trim() || connectionStatus === "connecting"}
-              >
-                Start it
-              </button>
-            </form>
+            <div className="pb-join-options">
+              <div className="pb-join-options__buttons">
+                <button
+                  type="button"
+                  className="pb-button pb-button--ghost"
+                  disabled={connectionStatus === "connecting"}
+                  onClick={() => startMissingAs("dev")}
+                >
+                  Start as Dev
+                </button>
+                <button
+                  type="button"
+                  className="pb-button pb-button--primary"
+                  disabled={connectionStatus === "connecting"}
+                  onClick={() => startMissingAs("product")}
+                >
+                  Start as Product
+                </button>
+                <button
+                  type="button"
+                  className="pb-button pb-button--ghost"
+                  disabled={connectionStatus === "connecting"}
+                  onClick={() => startMissingAs("qa")}
+                >
+                  Start as QA
+                </button>
+              </div>
+            </div>
             {lastError ? <p className="pb-error">{lastError}</p> : null}
           </section>
         </div>
@@ -489,11 +488,11 @@ export const PointingBlackjackSession: React.FC = () => {
             <div className="pb-join-options__buttons">
               <button
                 type="button"
-                className={`pb-button ${productJoinSelected ? "pb-button--primary" : "pb-button--ghost"}`}
+                className="pb-button pb-button--primary"
                 disabled={connectionStatus === "connecting"}
-                onClick={selectProductJoin}
+                onClick={joinAsDev}
               >
-                Join as Product
+                Join as Dev
               </button>
               <button
                 type="button"
@@ -507,37 +506,10 @@ export const PointingBlackjackSession: React.FC = () => {
                 type="button"
                 className="pb-button pb-button--ghost"
                 disabled={connectionStatus === "connecting"}
-                onClick={joinAsDev}
+                onClick={joinAsProduct}
               >
-                Join as Dev
+                Join as Product
               </button>
-            </div>
-            <div
-              className={`pb-join-product-name${productJoinSelected ? " pb-join-product-name--open" : ""}`}
-              aria-hidden={!productJoinSelected}
-            >
-              <form onSubmit={confirmProductJoin} className="pb-join-product-name__inner pb-form">
-                <label className="pb-label">
-                  Your name
-                  <input
-                    ref={productNameInputRef}
-                    className="pb-input"
-                    value={joinName}
-                    onChange={(e) => setJoinName(e.target.value)}
-                    placeholder="Product owner"
-                    maxLength={40}
-                    autoComplete="nickname"
-                    tabIndex={productJoinSelected ? 0 : -1}
-                  />
-                </label>
-                <button
-                  type="submit"
-                  className="pb-button pb-button--primary"
-                  disabled={!joinName.trim() || connectionStatus === "connecting"}
-                >
-                  Join table
-                </button>
-              </form>
             </div>
           </div>
           {lastError ? <p className="pb-error">{lastError}</p> : null}
@@ -617,10 +589,6 @@ export const PointingBlackjackSession: React.FC = () => {
             {voted ? (
               <span className="pb-table__vote pb-table__vote--yes">
                 Voted
-                <span className="pb-table__vote-hint" aria-hidden>
-                  {" "}
-                  · face down
-                </span>
               </span>
             ) : brb ? (
               <span className="pb-table__vote pb-table__vote--brb">BRB</span>
@@ -670,33 +638,10 @@ export const PointingBlackjackSession: React.FC = () => {
     });
 
   const renderProductTableBody = (players: PlayerRow[]) =>
-    players.map((p) => {
-      const brb = p.brb === true;
-      return (
-        <tr key={p.id}>
-          <td>
-            <PlayerNameCell player={p} brb={brb} />
-          </td>
-        </tr>
-      );
-    });
+    renderVoteTableBody(players);
 
   const renderProductList = (players: PlayerRow[]) =>
-    players.map((p) => {
-      const brb = p.brb === true;
-      return (
-        <li key={p.id} className="pb-product-row">
-          <PlayerStatusDot online={p.online} brb={brb} />
-          {p.name}
-          {brb ? (
-            <span className="pb-brb-suffix" aria-label="Be right back">
-              {" "}
-              - BRB
-            </span>
-          ) : null}
-        </li>
-      );
-    });
+    renderVoteList(players);
 
   return (
     <div className="pb-session">
@@ -735,15 +680,30 @@ export const PointingBlackjackSession: React.FC = () => {
             >
               Feedback
             </button>
-            <button type="button" className="pb-button pb-button--ghost" onClick={onLeave}>
-              Leave table
+            <button
+              type="button"
+              className="pb-button pb-button--ghost pb-button--leave"
+              onClick={onLeave}
+            >
+              Leave
             </button>
           </div>
         </div>
 
+
         {!state.revealed ? (
           <div className="pb-voting-layout">
             <div className="pb-voting-layout__sidebar">
+              <div className="pb-voting-layout__actions pb-card-actions">
+                <button
+                  type="button"
+                  className="pb-button pb-button--accent"
+                  onClick={reveal}
+                >
+                  Reveal cards
+                </button>
+              </div>
+
               {myPlayer ? (
                 <YouCard
                   name={myPlayer.name}
@@ -754,9 +714,6 @@ export const PointingBlackjackSession: React.FC = () => {
 
               <section className="pb-panel pb-players">
                 <h2>Players</h2>
-                <p className="pb-muted pb-players__hint">
-                  Points stay secret until someone reveals the cards.
-                </p>
                 <div className="pb-table-wrap">
                   <table className="pb-table">
                     <thead>
@@ -771,7 +728,7 @@ export const PointingBlackjackSession: React.FC = () => {
                       ) : (
                         <tr>
                           <td colSpan={2} className="pb-muted">
-                            No QA or Dev players yet.
+                            No Dev or QA players yet.
                           </td>
                         </tr>
                       )}
@@ -788,6 +745,7 @@ export const PointingBlackjackSession: React.FC = () => {
                       <thead>
                         <tr>
                           <th scope="col">Player</th>
+                          <th scope="col">Vote</th>
                         </tr>
                       </thead>
                       <tbody>{renderProductTableBody(productPlayers)}</tbody>
@@ -799,17 +757,12 @@ export const PointingBlackjackSession: React.FC = () => {
 
             <section className="pb-panel pb-voting-layout__cards">
               <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
+              {myPlayer?.role === "product" ? (
+                <p className="pb-muted pb-product-vote-note">
+                  Product is generally discouraged from voting.
+                </p>
+              ) : null}
             </section>
-
-            <div className="pb-voting-layout__actions pb-card-actions">
-              <button
-                type="button"
-                className="pb-button pb-button--accent"
-                onClick={reveal}
-              >
-                Reveal cards
-              </button>
-            </div>
           </div>
         ) : (
           <section className="pb-panel pb-revealed">
@@ -843,12 +796,17 @@ export const PointingBlackjackSession: React.FC = () => {
                 {productPlayers.length > 0 ? (
                   <div className="pb-votes-column pb-product">
                     <h3>Dealers</h3>
-                    <ul className="pb-product-list">{renderProductList(productPlayers)}</ul>
+                    <ul className="pb-vote-list">{renderProductList(productPlayers)}</ul>
                   </div>
                 ) : null}
               </div>
               <section className="pb-panel pb-revealed-layout__cards">
                 <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
+                {myPlayer?.role === "product" ? (
+                  <p className="pb-muted pb-product-vote-note">
+                    Product is generally discouraged from voting.
+                  </p>
+                ) : null}
               </section>
             </div>
           </section>

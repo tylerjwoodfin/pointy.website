@@ -53,7 +53,10 @@ type Ctx = {
   connectionStatus: "idle" | "connecting" | "open" | "error";
   state: SessionState | null;
   lastError: string | null;
-  createSession: (name: string, sessionId?: string) => void;
+  createSession: (
+    name: string,
+    options?: { sessionId?: string; role?: PlayerRole }
+  ) => void;
   joinSession: (
     sessionId: string,
     name: string,
@@ -371,15 +374,16 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
   sendWhenReadyRef.current = sendWhenReady;
 
   const createSession = useCallback(
-    (name: string, sessionId?: string) => {
+    (name: string, options?: { sessionId?: string; role?: PlayerRole }) => {
       const n = name.trim();
       if (!n) return;
       setState(null);
-      const sid = sessionId?.trim();
+      const sid = options?.sessionId?.trim();
       sendWhenReady({
         type: "create",
         name: n,
         ...(sid ? { sessionId: sid } : {}),
+        ...(options?.role ? { role: options.role } : {}),
       });
     },
     [sendWhenReady]
