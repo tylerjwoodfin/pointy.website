@@ -339,6 +339,12 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   vertical-align: middle;
   white-space: nowrap;
 
+  &--product {
+    background: rgba(180, 120, 255, 0.15);
+    color: #c9a8ff;
+    border: 1px solid rgba(180, 120, 255, 0.4);
+  }
+
   &--qa {
     background: rgba(212, 168, 75, 0.18);
     color: $pb-gold;
@@ -354,7 +360,7 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
 
 .pb-player-line {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 2.75rem auto;
+  grid-template-columns: auto minmax(0, 1fr) 4.5rem auto;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -394,23 +400,10 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   }
 }
 
-.pb-join-product-name {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition:
-    grid-template-rows 0.28s ease,
-    opacity 0.22s ease;
-
-  &--open {
-    grid-template-rows: 1fr;
-    opacity: 1;
-  }
-
-  &__inner {
-    overflow: hidden;
-    min-height: 0;
-  }
+.pb-product-vote-note {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 14px;
 }
 
 .pb-voting-layout {

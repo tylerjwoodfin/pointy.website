@@ -338,13 +338,14 @@ function attachSocketHandlers(wss) {
       const sessionId = requestedId || shortSessionId();
       const creatorId = randomUUID();
       const expiresAt = Date.now() + SESSION_TTL_MS;
+      const role = parsePlayerRole(msg.role) ?? "product";
       /** @type {Session} */
       const session = {
         id: sessionId,
         revealed: false,
         gameOver: false,
         expiresAt,
-        players: new Map([[creatorId, { name, online: true, role: "product" }]]),
+        players: new Map([[creatorId, { name, online: true, role }]]),
         votes: new Map(),
       };
       sessions.set(sessionId, session);
