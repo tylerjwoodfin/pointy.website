@@ -96,7 +96,7 @@ function deleteEmptySession(sessionId) {
 }
 
 /**
- * End session after 60 minutes.
+ * End session after the configured TTL (2 hours).
  * @param {string} sessionId
  */
 function expireSession(sessionId) {

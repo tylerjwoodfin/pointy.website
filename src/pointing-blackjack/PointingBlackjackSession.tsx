@@ -528,7 +528,7 @@ export const PointingBlackjackSession: React.FC = () => {
         <div className="pb-game-over" role="status">
           <h2>Table closed</h2>
           <p className="pb-muted">
-            This session ends 60 minutes after it starts. Start a new one from the lobby anytime.
+            This session ends 2 hours after it starts. Start a new one from the lobby anytime.
           </p>
           <div className="pb-card-actions">
             <button type="button" className="pb-button pb-button--primary" onClick={onLeave}>
