@@ -1,4 +1,4 @@
--- Add player role for Pointing Showdown (product / qa / dev).
+-- Add player role for Pointy (product / qa / dev).
 alter table public.pointing_players
   add column if not exists role text not null default 'dev';
 

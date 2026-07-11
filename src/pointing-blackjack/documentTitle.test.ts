@@ -1,16 +1,14 @@
 import {
-  POINTING_SHOWDOWN_TITLE,
+  POINTY_TITLE,
   swapDocumentTitle,
 } from "./documentTitle";
 
-test("swaps the document title for Pointing Showdown and restores it", () => {
-  document.title = "Tyler Woodfin";
+test("swaps the document title for Pointy and restores it", () => {
+  document.title = "Previous";
 
-  const restore = swapDocumentTitle(POINTING_SHOWDOWN_TITLE);
-
-  expect(document.title).toBe("Pointing Showdown");
+  const restore = swapDocumentTitle(POINTY_TITLE);
+  expect(document.title).toBe("Pointy");
 
   restore();
-
-  expect(document.title).toBe("Tyler Woodfin");
+  expect(document.title).toBe("Previous");
 });

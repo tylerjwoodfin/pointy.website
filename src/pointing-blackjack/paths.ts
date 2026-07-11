@@ -1,4 +1,4 @@
-/** Lobby and session paths — root is canonical; /pointing-showdown kept for old links. */
+/** Lobby and session paths — root is canonical; /pointing-showdown kept for legacy links. */
 export function lobbyPath(pathname: string): string {
   return pathname.startsWith("/pointing-showdown") ? "/pointing-showdown" : "/";
 }

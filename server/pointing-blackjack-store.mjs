@@ -1,5 +1,5 @@
 /**
- * Supabase persistence for Pointing Showdown sessions.
+ * Supabase persistence for Pointy sessions.
  * Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
  */
 import WebSocket from "ws";
