@@ -85,6 +85,27 @@ function averageVote(
   return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
+const ROLE_AVG_ORDER: PlayerRole[] = ["dev", "qa", "product"];
+
+const ROLE_AVG_LABEL: Record<PlayerRole, string> = {
+  dev: "Dev",
+  qa: "QA",
+  product: "Product",
+};
+
+function formatAverage(value: number | null): string {
+  return value === null ? "—" : value.toFixed(2);
+}
+
+function averageVoteForRole(
+  players: PlayerRow[],
+  voteByPlayer: Record<string, number | null | "hidden">,
+  role: PlayerRole
+): number | null {
+  const ids = players.filter((p) => p.role === role).map((p) => p.id);
+  return averageVote(voteByPlayer, ids);
+}
+
 const VoteCardGrid: React.FC<{
   myNumeric: number | undefined;
   vote: (value: number) => void;
@@ -562,6 +583,12 @@ export const PointingBlackjackSession: React.FC = () => {
   const playerIds = state.players.map((p) => p.id);
   const counts = buildCounts(state.voteByPlayer, playerIds);
   const avg = averageVote(state.voteByPlayer, playerIds);
+  const roleAverages = ROLE_AVG_ORDER.map((role) => ({
+    role,
+    label: ROLE_AVG_LABEL[role],
+    avg: averageVoteForRole(state.players, state.voteByPlayer, role),
+    hasPlayers: state.players.some((p) => p.role === role),
+  })).filter((row) => row.hasPlayers);
 
   const myPlayer = state.players.find((p) => p.id === state.myPlayerId);
   const myBrb = myPlayer?.brb === true;
@@ -777,10 +804,32 @@ export const PointingBlackjackSession: React.FC = () => {
                 <div className="pb-avg-column">
                   <h3>Average</h3>
                   {avg !== null ? (
-                    <p className="pb-avg-value">{avg.toFixed(2)}</p>
+                    <p className="pb-avg-value" aria-label="Overall average">
+                      {formatAverage(avg)}
+                    </p>
                   ) : (
                     <p className="pb-muted">No votes yet.</p>
                   )}
+                  {roleAverages.length > 0 ? (
+                    <ul className="pb-avg-by-role" aria-label="Average by role">
+                      {roleAverages.map(({ role, label, avg: roleAvg }) => (
+                        <li key={role} className="pb-avg-by-role__row">
+                          <span className={`pb-flair pb-flair--${role}`}>
+                            {label}
+                          </span>
+                          <span
+                            className={
+                              roleAvg === null
+                                ? "pb-avg-by-role__value pb-muted"
+                                : "pb-avg-by-role__value"
+                            }
+                          >
+                            {formatAverage(roleAvg)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                   <p className="pb-muted pb-avg-note">Non-voters excluded.</p>
                 </div>
                 <div className="pb-votes-column">
