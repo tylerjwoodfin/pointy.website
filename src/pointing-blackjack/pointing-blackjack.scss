@@ -866,6 +866,29 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   letter-spacing: 0.04em;
 }
 
+.pb-avg-by-role {
+  list-style: none;
+  margin: 10px 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__value {
+    font-size: 1.15rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+}
+
 .pb-avg-note {
   margin: 0;
   font-size: 14px;
