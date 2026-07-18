@@ -16,6 +16,7 @@ Originally extracted from [tyler.cloud](https://github.com/tylerjwoodfin/tyler.c
 - Invite link you can copy and share
 - In-session feedback form
 - Session persistence in Supabase (survives server restarts; 2-hour TTL)
+- Usage metrics via [Cabinet](https://github.com/tylerjwoodfin/cabinet) (`pointy` tag) on session start, join, vote, and reveal
 
 ## Quick start
 

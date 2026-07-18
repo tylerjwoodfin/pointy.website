@@ -11,6 +11,7 @@ import {
   createPointingStore,
   loadSupabaseConfig,
 } from "./pointing-blackjack-store.mjs";
+import { cabinetLog } from "./cabinet-log.mjs";
 
 const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -352,6 +353,9 @@ function attachSocketHandlers(wss) {
       scheduleSessionExpiry(sessionId);
       registerPlayerSocket(ws, session, creatorId);
       void saveSession(session);
+      cabinetLog(
+        `session started sessionId=${sessionId} player=${name} role=${role}`
+      );
       return;
     }
 
@@ -389,6 +393,9 @@ function attachSocketHandlers(wss) {
       }
       registerPlayerSocket(ws, session, playerId);
       void saveSession(session);
+      cabinetLog(
+        `session joined sessionId=${sessionId} player=${name} role=${role}`
+      );
       return;
     }
 
@@ -454,6 +461,12 @@ function attachSocketHandlers(wss) {
       session.votes.set(meta.playerId, v);
       broadcastSession(session.id);
       void saveSession(session);
+      {
+        const pl = session.players.get(meta.playerId);
+        cabinetLog(
+          `vote sessionId=${session.id} player=${pl?.name ?? meta.playerId} value=${v}`
+        );
+      }
       return;
     }
 
@@ -468,6 +481,7 @@ function attachSocketHandlers(wss) {
       session.revealed = true;
       broadcastSession(session.id);
       void saveSession(session);
+      cabinetLog(`cards revealed sessionId=${session.id}`);
       return;
     }
 
