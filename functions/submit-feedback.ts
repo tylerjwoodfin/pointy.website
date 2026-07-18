@@ -2,6 +2,10 @@ export interface Env {
   RESEND_API_KEY: string;
   FEEDBACK_EMAIL_FROM: string;
   FEEDBACK_EMAIL_TO: string;
+  /** Full URL to the Pointy host bridge, e.g. https://ws.pointy.website/create-pointy-feedback */
+  FEEDBACK_TAIGA_PROXY_URL: string;
+  /** Shared secret; must match POINTY_FEEDBACK_SECRET on the WebSocket host. */
+  POINTY_FEEDBACK_SECRET: string;
 }
 
 const MAX_MESSAGE_LENGTH = 5000;
@@ -72,6 +76,61 @@ async function allowFeedbackRequest(request: Request): Promise<boolean> {
   return true;
 }
 
+type TaigaTicket = {
+  ref: number;
+  id: number;
+  url: string;
+};
+
+/**
+ * Create a Taiga user story via the Pointy WebSocket host (reaches taiga-back).
+ */
+async function createTaigaTicket(
+  env: Env,
+  subject: string,
+  description: string
+): Promise<TaigaTicket> {
+  const proxyUrl = (env.FEEDBACK_TAIGA_PROXY_URL || "").trim();
+  const secret = (env.POINTY_FEEDBACK_SECRET || "").trim();
+  if (!proxyUrl || !secret) {
+    throw new Error(
+      "FEEDBACK_TAIGA_PROXY_URL and POINTY_FEEDBACK_SECRET must be configured"
+    );
+  }
+
+  const res = await fetch(proxyUrl, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + secret,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ subject, description }),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Taiga proxy failed (${res.status}): ${text.slice(0, 500)}`);
+  }
+
+  let parsed: Partial<TaigaTicket>;
+  try {
+    parsed = JSON.parse(text) as Partial<TaigaTicket>;
+  } catch {
+    throw new Error(`Taiga proxy returned non-JSON: ${text.slice(0, 200)}`);
+  }
+
+  if (
+    typeof parsed.ref !== "number" ||
+    typeof parsed.id !== "number" ||
+    typeof parsed.url !== "string" ||
+    !parsed.url
+  ) {
+    throw new Error(`Taiga proxy returned unexpected payload: ${text.slice(0, 400)}`);
+  }
+
+  return { ref: parsed.ref, id: parsed.id, url: parsed.url };
+}
+
 export async function onRequestPost(params: { request: Request; env: Env }) {
   try {
     if (!(await allowFeedbackRequest(params.request))) {
@@ -109,7 +168,7 @@ export async function onRequestPost(params: { request: Request; env: Env }) {
 
     const ip = clientIp(params.request);
 
-    const emailBodyArray = [
+    const ticketBodyArray = [
       "Message:",
       message,
       "",
@@ -121,10 +180,29 @@ export async function onRequestPost(params: { request: Request; env: Env }) {
     ];
 
     if (includeResumeRequest) {
-      emailBodyArray.push("", "Resume Request: YES");
+      ticketBodyArray.push("", "Resume Request: YES");
     }
 
-    const emailBody = emailBodyArray.join("\n").trim();
+    const ticketBody = ticketBodyArray.join("\n").trim();
+
+    let ticket: TaigaTicket;
+    try {
+      ticket = await createTaigaTicket(params.env, "Pointy Feedback", ticketBody);
+    } catch (error) {
+      console.error("Taiga ticket error:", error);
+      return new Response("Failed to create feedback ticket", { status: 500 });
+    }
+
+    const emailBody = [
+      "New Pointy feedback — Taiga ticket created:",
+      ticket.url,
+      "",
+      `Ref: TJW-${ticket.ref}`,
+      "",
+      "---",
+      "",
+      ticketBody,
+    ].join("\n");
 
     try {
       const res = await fetch("https://api.resend.com/emails", {
@@ -144,13 +222,14 @@ export async function onRequestPost(params: { request: Request; env: Env }) {
       if (!res.ok) {
         const error = await res.text();
         console.error("Resend error:", error);
-        return new Response("Failed to send email", { status: 500 });
+        // Ticket already exists; tell the client success so they do not resubmit.
+        return new Response("Feedback received (email failed)", { status: 200 });
       }
 
       return new Response("Feedback received", { status: 200 });
     } catch (error) {
       console.error("Fetch error:", error);
-      return new Response("Failed to send email", { status: 500 });
+      return new Response("Feedback received (email failed)", { status: 200 });
     }
   } catch (error) {
     console.error("JSON parse error:", error);

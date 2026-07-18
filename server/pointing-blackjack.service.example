@@ -26,6 +26,12 @@ Environment=PATH=/home/YOUR_UNIX_USER/.local/bin:/usr/local/bin:/usr/bin:/bin
 # Supabase (run supabase/migrations/20260629000000_pointing_showdown.sql first)
 Environment=SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 Environment=SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+# Feedback → Taiga bridge (must match Pages secret POINTY_FEEDBACK_SECRET)
+# Environment=POINTY_FEEDBACK_SECRET=generate-a-long-random-string
+# Optional Taiga overrides (otherwise loaded from Cabinet taiga.*):
+# Environment=TAIGA_API_ROOT=http://172.25.0.8:8000/api/v1
+# Environment=TAIGA_AUTH_TOKEN=
+# Environment=TAIGA_PUBLIC_BASE_URL=https://taiga.tyler.cloud
 
 [Install]
 WantedBy=multi-user.target

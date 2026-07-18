@@ -68,7 +68,9 @@ Deployments are automatic via GitHub Actions (`.github/workflows/deploy-pages.ym
 
 Pages project: `pointy-website` · build env bakes in `REACT_APP_POINTING_BLACKJACK_WS=wss://ws.pointy.website`.
 
-Function secrets (feedback): `RESEND_API_KEY`, `FEEDBACK_EMAIL_FROM`, `FEEDBACK_EMAIL_TO`.
+Function secrets (feedback): `RESEND_API_KEY`, `FEEDBACK_EMAIL_FROM`, `FEEDBACK_EMAIL_TO`, `FEEDBACK_TAIGA_PROXY_URL` (e.g. `https://ws.pointy.website/create-pointy-feedback`), `POINTY_FEEDBACK_SECRET` (same value as on the WebSocket host).
+
+Feedback creates a Taiga user story titled **Pointy Feedback**, then emails a link to that ticket. The Pages function cannot reach taiga-back directly (Authentik), so it POSTs to the WebSocket host bridge (`POST /create-pointy-feedback`), which uses Cabinet `taiga.*` (or `TAIGA_*` env) to create the story.
 
 ### 3. WebSocket tunnel + Node server
 
