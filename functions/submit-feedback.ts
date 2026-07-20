@@ -10,7 +10,7 @@ export interface Env {
 
 const MAX_MESSAGE_LENGTH = 5000;
 /** Max successful feedback posts per IP within the window. */
-const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_MAX = 20;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
 type RateLimitEntry = {
