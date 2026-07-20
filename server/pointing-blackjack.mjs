@@ -4,16 +4,22 @@
  * Port: POINTING_BLACKJACK_PORT or 3333
  *
  * Session state is persisted in Supabase (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY).
+ *
+ * Also serves POST /create-pointy-feedback (shared-secret) so Cloudflare Pages can
+ * create Taiga tickets via this host (which reaches taiga-back).
  */
+import http from "http";
 import { WebSocketServer } from "ws";
-import { randomUUID } from "crypto";
+import { randomUUID, timingSafeEqual } from "crypto";
 import {
   createPointingStore,
   loadSupabaseConfig,
 } from "./pointing-blackjack-store.mjs";
 import { cabinetLog } from "./cabinet-log.mjs";
+import { createPointyFeedbackTicket } from "./taiga-feedback.mjs";
 
 const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
+const FEEDBACK_PATH = "/create-pointy-feedback";
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 25 * 1000;
 const EXPIRED_SESSION_CLEANUP_MS = 10 * 60 * 1000;
@@ -516,7 +522,10 @@ async function main() {
     process.exit(1);
   }
 
-  const wss = new WebSocketServer({ port: PORT, host: "0.0.0.0" });
+  const server = http.createServer((req, res) => {
+    void handleHttpRequest(req, res);
+  });
+  const wss = new WebSocketServer({ server });
   attachSocketHandlers(wss);
 
   const heartbeatTimer = setInterval(() => {
@@ -559,7 +568,126 @@ async function main() {
     clearInterval(cleanupTimer);
   });
 
-  console.log(`Pointy server on ws://localhost:${PORT}`);
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`Pointy server on ws://localhost:${PORT}`);
+    console.log(`Pointy feedback Taiga bridge on http://localhost:${PORT}${FEEDBACK_PATH}`);
+  });
+}
+
+/**
+ * @param {string | undefined} provided
+ * @param {string} expected
+ */
+function secretsMatch(provided, expected) {
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/**
+ * @param {import('http').IncomingMessage} req
+ * @returns {Promise<unknown>}
+ */
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    const max = 32_000;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > max) {
+        reject(new Error("body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      try {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+/**
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ */
+async function handleHttpRequest(req, res) {
+  const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+  if (req.method === "POST" && url.pathname === FEEDBACK_PATH) {
+    await handleCreatePointyFeedback(req, res);
+    return;
+  }
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not found");
+}
+
+/**
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ */
+async function handleCreatePointyFeedback(req, res) {
+  const expected = (process.env.POINTY_FEEDBACK_SECRET || "").trim();
+  if (!expected) {
+    res.writeHead(503, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Feedback Taiga bridge not configured" }));
+    return;
+  }
+
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
+  if (!secretsMatch(token, expected)) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Unauthorized" }));
+    return;
+  }
+
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid JSON body" }));
+    return;
+  }
+
+  const description =
+    body && typeof body === "object" && typeof body.description === "string"
+      ? body.description
+      : "";
+  const subject =
+    body && typeof body === "object" && typeof body.subject === "string"
+      ? body.subject
+      : "Pointy Feedback";
+
+  if (description.trim().length < 4) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "description too short" }));
+    return;
+  }
+
+  try {
+    const ticket = await createPointyFeedbackTicket({ subject, description });
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(ticket));
+  } catch (err) {
+    console.error("Failed to create Pointy feedback Taiga ticket:", err);
+    res.writeHead(502, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        error: "Failed to create Taiga ticket",
+        detail: err instanceof Error ? err.message : String(err),
+      })
+    );
+  }
 }
 
 main().catch((err) => {
