@@ -204,16 +204,29 @@ export async function onRequestPost(params: { request: Request; env: Env }) {
       ticketBody,
     ].join("\n");
 
+    const resendKey = (params.env.RESEND_API_KEY || "").trim();
+    const emailFrom = (params.env.FEEDBACK_EMAIL_FROM || "").trim();
+    const emailTo = (params.env.FEEDBACK_EMAIL_TO || "").trim();
+    if (!resendKey || !emailFrom || !emailTo) {
+      console.error("Resend env missing", {
+        hasKey: Boolean(resendKey),
+        hasFrom: Boolean(emailFrom),
+        hasTo: Boolean(emailTo),
+      });
+      // Ticket already exists; tell the client success so they do not resubmit.
+      return new Response("Feedback received (email failed)", { status: 200 });
+    }
+
     try {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          Authorization: "Bearer " + params.env.RESEND_API_KEY,
+          Authorization: "Bearer " + resendKey,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: params.env.FEEDBACK_EMAIL_FROM,
-          to: params.env.FEEDBACK_EMAIL_TO,
+          from: emailFrom,
+          to: [emailTo],
           subject: subject,
           text: emailBody,
         }),
