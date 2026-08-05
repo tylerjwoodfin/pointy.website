@@ -12,6 +12,8 @@ import { lobbyPath, sessionPath } from "./paths";
 import { isValidRoomCode } from "./roomCode";
 import { PointyFeedbackModal } from "./PointyFeedbackModal";
 import { uniqueCodename } from "./codename";
+import { teamVoteParticipation } from "./teamVoteParticipation";
+import type { RoleParticipation, TeamVoteParticipation } from "./teamVoteParticipation";
 import type { PlayerRole, PlayerRow, VoteValue } from "./types";
 
 type RoomPhase = "loading" | "unreachable" | "invalid" | "missing" | "exists";
@@ -132,6 +134,51 @@ const VoteCardGrid: React.FC<{
     })}
   </div>
 );
+
+const TeamVotePercent: React.FC<{
+  participation: TeamVoteParticipation | null;
+}> = ({ participation }) => {
+  if (!participation) return null;
+  const rows: { role: "dev" | "qa"; label: string; stats: RoleParticipation }[] =
+    [];
+  if (participation.dev) {
+    rows.push({ role: "dev", label: "Dev", stats: participation.dev });
+  }
+  if (participation.qa) {
+    rows.push({ role: "qa", label: "QA", stats: participation.qa });
+  }
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="pb-team-vote-percent" aria-live="polite">
+      {rows.map(({ role, label, stats }) => (
+        <div
+          key={role}
+          className={`pb-team-vote-percent__row pb-team-vote-percent__row--${role}`}
+          aria-label={`${stats.percent} percent of ${label} have voted, ${stats.voted} of ${stats.total}`}
+        >
+          <div className="pb-team-vote-percent__meta">
+            <span className={`pb-flair pb-flair--${role}`}>{label}</span>
+            <span className="pb-team-vote-percent__value">{stats.percent}%</span>
+            <span className="pb-team-vote-percent__detail">
+              {stats.voted}/{stats.total}
+            </span>
+          </div>
+          <div
+            className="pb-team-vote-percent__track"
+            role="presentation"
+            aria-hidden
+          >
+            <div
+              className="pb-team-vote-percent__fill"
+              style={{ width: `${stats.percent}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 function PlayerStatusDot({ online, brb }: { online: boolean; brb?: boolean }) {
   const kind = brb ? "brb" : online ? "on" : "off";
@@ -594,6 +641,10 @@ export const PointingBlackjackSession: React.FC = () => {
   const myBrb = myPlayer?.brb === true;
   const productPlayers = state.players.filter((p) => p.role === "product");
   const teamPlayers = state.players.filter((p) => p.role !== "product");
+  const teamParticipation = teamVoteParticipation(
+    state.players,
+    state.voteByPlayer
+  );
 
   const renderVoteTableBody = (players: PlayerRow[]) =>
     players.map((p) => {
@@ -783,6 +834,7 @@ export const PointingBlackjackSession: React.FC = () => {
             </div>
 
             <section className="pb-panel pb-voting-layout__cards">
+              <TeamVotePercent participation={teamParticipation} />
               <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
               {myPlayer?.role === "product" ? (
                 <p className="pb-muted pb-product-vote-note">
@@ -850,6 +902,7 @@ export const PointingBlackjackSession: React.FC = () => {
                 ) : null}
               </div>
               <section className="pb-panel pb-revealed-layout__cards">
+                <TeamVotePercent participation={teamParticipation} />
                 <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
                 {myPlayer?.role === "product" ? (
                   <p className="pb-muted pb-product-vote-note">

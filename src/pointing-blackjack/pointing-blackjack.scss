@@ -7,6 +7,7 @@ $pb-accent: #3ecf8e;
 $pb-accent-dim: #2a9f6a;
 $pb-danger: #e85555;
 $pb-gold: #d4a84b;
+$pb-qa: #ff8c2a;
 $pb-card-face: #f7f2e9;
 $pb-card-red: #c0392b;
 
@@ -354,9 +355,9 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   }
 
   &--qa {
-    background: rgba(212, 168, 75, 0.18);
-    color: $pb-gold;
-    border: 1px solid rgba(212, 168, 75, 0.45);
+    background: rgba(255, 140, 42, 0.16);
+    color: $pb-qa;
+    border: 1px solid rgba(255, 140, 42, 0.5);
   }
 
   &--dev {
@@ -412,6 +413,75 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   margin: 14px 0 0;
   text-align: center;
   font-size: 14px;
+}
+
+.pb-team-vote-percent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+
+  &__row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  &__value {
+    font-size: 1.15rem;
+    font-weight: 600;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__detail {
+    font-size: 12px;
+    color: $pb-muted;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  &__track {
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  &__fill {
+    height: 100%;
+    border-radius: inherit;
+    transition: width 0.2s ease;
+  }
+
+  &__row--dev {
+    .pb-team-vote-percent__value {
+      color: #8eb8ff;
+    }
+
+    .pb-team-vote-percent__fill {
+      background: #8eb8ff;
+    }
+  }
+
+  &__row--qa {
+    .pb-team-vote-percent__value {
+      color: $pb-qa;
+    }
+
+    .pb-team-vote-percent__fill {
+      background: $pb-qa;
+    }
+  }
 }
 
 .pb-voting-layout {
