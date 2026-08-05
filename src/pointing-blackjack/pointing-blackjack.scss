@@ -7,6 +7,7 @@ $pb-accent: #3ecf8e;
 $pb-accent-dim: #2a9f6a;
 $pb-danger: #e85555;
 $pb-gold: #d4a84b;
+$pb-qa: #f08a8a;
 $pb-card-face: #f7f2e9;
 $pb-card-red: #c0392b;
 
@@ -354,9 +355,9 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   }
 
   &--qa {
-    background: rgba(212, 168, 75, 0.18);
-    color: $pb-gold;
-    border: 1px solid rgba(212, 168, 75, 0.45);
+    background: rgba(240, 138, 138, 0.16);
+    color: $pb-qa;
+    border: 1px solid rgba(240, 138, 138, 0.45);
   }
 
   &--dev {
@@ -474,11 +475,11 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
 
   &__row--qa {
     .pb-team-vote-percent__value {
-      color: $pb-gold;
+      color: $pb-qa;
     }
 
     .pb-team-vote-percent__fill {
-      background: $pb-gold;
+      background: $pb-qa;
     }
   }
 }
