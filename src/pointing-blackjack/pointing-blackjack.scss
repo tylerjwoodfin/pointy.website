@@ -417,18 +417,28 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
 .pb-team-vote-percent {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  margin: 0 0 14px;
+  gap: 10px;
+  margin: 0 0 16px;
   padding: 0;
-  border: none;
-  background: none;
+
+  &__row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+  }
 
   &__value {
-    font-size: 1.5rem;
+    font-size: 1.15rem;
     font-weight: 600;
     line-height: 1.1;
-    color: $pb-accent;
     font-variant-numeric: tabular-nums;
   }
 
@@ -437,6 +447,39 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
     color: $pb-muted;
     letter-spacing: 0.02em;
     white-space: nowrap;
+  }
+
+  &__track {
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  &__fill {
+    height: 100%;
+    border-radius: inherit;
+    transition: width 0.2s ease;
+  }
+
+  &__row--dev {
+    .pb-team-vote-percent__value {
+      color: #8eb8ff;
+    }
+
+    .pb-team-vote-percent__fill {
+      background: #8eb8ff;
+    }
+  }
+
+  &__row--qa {
+    .pb-team-vote-percent__value {
+      color: $pb-gold;
+    }
+
+    .pb-team-vote-percent__fill {
+      background: $pb-gold;
+    }
   }
 }
 

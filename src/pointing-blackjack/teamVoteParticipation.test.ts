@@ -16,7 +16,7 @@ describe("teamVoteParticipation", () => {
     expect(teamVoteParticipation([], {})).toBeNull();
   });
 
-  it("counts only QA and Dev, including hidden votes", () => {
+  it("returns separate Dev and QA stats, including hidden votes", () => {
     const players = [
       player("p", "product"),
       player("d1", "dev"),
@@ -24,25 +24,27 @@ describe("teamVoteParticipation", () => {
       player("q1", "qa"),
       player("q2", "qa"),
     ];
-    const result = teamVoteParticipation(players, {
-      p: 8,
-      d1: "hidden",
-      d2: null,
-      q1: 3,
-      q2: null,
+    expect(
+      teamVoteParticipation(players, {
+        p: 8,
+        d1: "hidden",
+        d2: null,
+        q1: 3,
+        q2: null,
+      })
+    ).toEqual({
+      dev: { voted: 1, total: 2, percent: 50 },
+      qa: { voted: 1, total: 2, percent: 50 },
     });
-    expect(result).toEqual({ voted: 2, total: 4, percent: 50 });
   });
 
-  it("treats players without a role as team (non-product)", () => {
-    const players: PlayerRow[] = [
-      { id: "x", name: "x", online: true },
-      player("d", "dev"),
-    ];
-    expect(teamVoteParticipation(players, { x: 1, d: null })).toEqual({
-      voted: 1,
-      total: 2,
-      percent: 50,
+  it("omits a role that has no players", () => {
+    const players = [player("d1", "dev"), player("d2", "dev")];
+    expect(
+      teamVoteParticipation(players, { d1: 5, d2: "hidden" })
+    ).toEqual({
+      dev: { voted: 2, total: 2, percent: 100 },
+      qa: null,
     });
   });
 
@@ -50,12 +52,11 @@ describe("teamVoteParticipation", () => {
     const players = [
       player("a", "dev"),
       player("b", "dev"),
-      player("c", "qa"),
+      player("c", "dev"),
     ];
     expect(teamVoteParticipation(players, { a: 1 })).toEqual({
-      voted: 1,
-      total: 3,
-      percent: 33,
+      dev: { voted: 1, total: 3, percent: 33 },
+      qa: null,
     });
   });
 });
