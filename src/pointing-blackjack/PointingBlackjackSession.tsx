@@ -12,6 +12,7 @@ import { lobbyPath, sessionPath } from "./paths";
 import { isValidRoomCode } from "./roomCode";
 import { PointyFeedbackModal } from "./PointyFeedbackModal";
 import { uniqueCodename } from "./codename";
+import { teamVoteParticipation } from "./teamVoteParticipation";
 import type { PlayerRole, PlayerRow, VoteValue } from "./types";
 
 type RoomPhase = "loading" | "unreachable" | "invalid" | "missing" | "exists";
@@ -132,6 +133,25 @@ const VoteCardGrid: React.FC<{
     })}
   </div>
 );
+
+const TeamVotePercent: React.FC<{
+  participation: { voted: number; total: number; percent: number } | null;
+}> = ({ participation }) => {
+  if (!participation) return null;
+  const { voted, total, percent } = participation;
+  return (
+    <p
+      className="pb-team-vote-percent"
+      aria-live="polite"
+      aria-label={`${percent} percent of QA and Dev have voted, ${voted} of ${total}`}
+    >
+      <span className="pb-team-vote-percent__value">{percent}%</span>
+      <span className="pb-team-vote-percent__detail">
+        voted ({voted}/{total})
+      </span>
+    </p>
+  );
+};
 
 function PlayerStatusDot({ online, brb }: { online: boolean; brb?: boolean }) {
   const kind = brb ? "brb" : online ? "on" : "off";
@@ -594,6 +614,10 @@ export const PointingBlackjackSession: React.FC = () => {
   const myBrb = myPlayer?.brb === true;
   const productPlayers = state.players.filter((p) => p.role === "product");
   const teamPlayers = state.players.filter((p) => p.role !== "product");
+  const teamParticipation = teamVoteParticipation(
+    state.players,
+    state.voteByPlayer
+  );
 
   const renderVoteTableBody = (players: PlayerRow[]) =>
     players.map((p) => {
@@ -783,6 +807,7 @@ export const PointingBlackjackSession: React.FC = () => {
             </div>
 
             <section className="pb-panel pb-voting-layout__cards">
+              <TeamVotePercent participation={teamParticipation} />
               <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
               {myPlayer?.role === "product" ? (
                 <p className="pb-muted pb-product-vote-note">
@@ -850,6 +875,7 @@ export const PointingBlackjackSession: React.FC = () => {
                 ) : null}
               </div>
               <section className="pb-panel pb-revealed-layout__cards">
+                <TeamVotePercent participation={teamParticipation} />
                 <VoteCardGrid myNumeric={myNumeric} vote={vote} clearVote={clearVote} />
                 {myPlayer?.role === "product" ? (
                   <p className="pb-muted pb-product-vote-note">
