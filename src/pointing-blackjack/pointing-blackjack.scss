@@ -7,7 +7,7 @@ $pb-accent: #3ecf8e;
 $pb-accent-dim: #2a9f6a;
 $pb-danger: #e85555;
 $pb-gold: #d4a84b;
-$pb-qa: #f08a8a;
+$pb-qa: #f0a060;
 $pb-card-face: #f7f2e9;
 $pb-card-red: #c0392b;
 
@@ -355,9 +355,9 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   }
 
   &--qa {
-    background: rgba(240, 138, 138, 0.16);
+    background: rgba(240, 160, 96, 0.16);
     color: $pb-qa;
-    border: 1px solid rgba(240, 138, 138, 0.45);
+    border: 1px solid rgba(240, 160, 96, 0.45);
   }
 
   &--dev {
