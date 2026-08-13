@@ -434,6 +434,12 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
     align-items: baseline;
     gap: 10px;
     min-width: 0;
+
+    // Same label width so Dev/QA percents line up ("Dev" is wider than "QA").
+    .pb-flair {
+      min-width: 3.5rem;
+      box-sizing: border-box;
+    }
   }
 
   &__value {
