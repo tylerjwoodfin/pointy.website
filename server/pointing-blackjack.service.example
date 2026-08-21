@@ -8,15 +8,19 @@
 
 [Unit]
 Description=Pointy WebSocket server
-After=network.target
+After=network-online.target docker.service
+Wants=network-online.target docker.service
 
 [Service]
 Type=simple
 User=YOUR_UNIX_USER
 WorkingDirectory=/home/YOUR_UNIX_USER/git/pointy.website
 ExecStart=/usr/bin/node server/pointing-blackjack.mjs
-Restart=on-failure
+# always: a clean exit during boot (Supabase not ready yet) must still come back
+Restart=always
 RestartSec=5
+# If Supabase is local Docker (e.g. 127.0.0.1:54321), wait before ExecStart:
+# ExecStartPre=/bin/bash -c 'for i in $(seq 1 90); do bash -c "echo >/dev/tcp/127.0.0.1/54321" 2>/dev/null && exit 0; sleep 1; done; exit 1'
 Environment=NODE_ENV=production
 Environment=POINTING_BLACKJACK_PORT=3333
 # Cabinet usage metrics (session start/join/vote/reveal). CLI must be on PATH
