@@ -226,11 +226,6 @@ function PlayerNameCell({ player, brb }: { player: PlayerRow; brb?: boolean }) {
       <span className="pb-player-line__flair">
         <RoleFlair role={player.role} />
       </span>
-      {brb ? (
-        <span className="pb-brb-suffix" aria-label="Be right back">
-          - BRB
-        </span>
-      ) : null}
     </span>
   );
 }
@@ -685,17 +680,8 @@ export const PointingBlackjackSession: React.FC = () => {
       const brb = p.brb === true;
       return (
         <li key={p.id} className="pb-vote-row">
-          <span className="pb-player-line pb-vote-row__name">
-            <PlayerStatusDot online={p.online} brb={brb} />
-            <span className="pb-player-line__name">{p.name}</span>
-            <span className="pb-player-line__flair">
-              <RoleFlair role={p.role} />
-            </span>
-            {brb ? (
-              <span className="pb-brb-suffix" aria-label="Be right back">
-                - BRB
-              </span>
-            ) : null}
+          <span className="pb-vote-row__name">
+            <PlayerNameCell player={p} brb={brb} />
           </span>
           <span className="pb-vote-row__val">
             {has ? (

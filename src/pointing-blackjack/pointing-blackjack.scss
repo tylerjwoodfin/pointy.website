@@ -369,7 +369,7 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
 
 .pb-player-line {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 4.5rem auto;
+  grid-template-columns: auto minmax(0, 1fr) 4.5rem;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -571,13 +571,6 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
   tbody tr:last-child td {
     border-bottom: none;
   }
-}
-
-.pb-brb-suffix {
-  color: $pb-muted;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
 }
 
 .pb-table__vote {
