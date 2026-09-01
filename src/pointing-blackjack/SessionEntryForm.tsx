@@ -81,7 +81,7 @@ export const SessionEntryForm: React.FC<SessionEntryFormProps> = ({
             Anonymous Mode
           </label>
           <p className="pb-check__hint">
-            Players join with generated nicknames instead of entering a name.
+            Players join with fun nicknames.
           </p>
         </div>
       ) : null}
