@@ -1,9 +1,8 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { uniqueCodename } from "./codename";
 import { usePointingBlackjack } from "./PointingBlackjackProvider";
 import { sessionPath } from "./paths";
-import type { PlayerRole } from "./types";
+import { LOBBY_START_BUTTONS, SessionEntryForm } from "./SessionEntryForm";
 
 export const PointingBlackjackLobby: React.FC = () => {
   const { createSession, state, lastError, connectionStatus } =
@@ -16,10 +15,6 @@ export const PointingBlackjackLobby: React.FC = () => {
     }
   }, [state, navigate]);
 
-  const startAs = (role: PlayerRole) => {
-    createSession(uniqueCodename([]), { role });
-  };
-
   const busy = connectionStatus === "connecting";
 
   return (
@@ -27,34 +22,13 @@ export const PointingBlackjackLobby: React.FC = () => {
       <section className="pb-panel">
         <h2>Start a session</h2>
         <p className="pb-muted">You’ll get a link to share with your team.</p>
-        <div className="pb-join-options">
-          <div className="pb-join-options__buttons">
-            <button
-              type="button"
-              className="pb-button pb-button--ghost"
-              disabled={busy}
-              onClick={() => startAs("dev")}
-            >
-              I'm a Dev
-            </button>
-            <button
-              type="button"
-              className="pb-button pb-button--primary"
-              disabled={busy}
-              onClick={() => startAs("product")}
-            >
-              I'm a Product Owner
-            </button>
-            <button
-              type="button"
-              className="pb-button pb-button--ghost"
-              disabled={busy}
-              onClick={() => startAs("qa")}
-            >
-              I'm a QA Engineer
-            </button>
-          </div>
-        </div>
+        <SessionEntryForm
+          busy={busy}
+          buttons={LOBBY_START_BUTTONS}
+          onSubmit={({ role, name, anonymousMode }) => {
+            createSession(name, { role, anonymousMode });
+          }}
+        />
       </section>
 
       {lastError ? <p className="pb-error">{lastError}</p> : null}

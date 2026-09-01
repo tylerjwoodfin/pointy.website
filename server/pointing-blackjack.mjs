@@ -26,7 +26,7 @@ const EXPIRED_SESSION_CLEANUP_MS = 10 * 60 * 1000;
 
 /** @typedef {'product' | 'qa' | 'dev'} PlayerRole */
 /** @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole }} Player */
-/** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, players: Map<string, Player>, votes: Map<string, number|null> }} Session */
+/** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, anonymousMode?: boolean, players: Map<string, Player>, votes: Map<string, number|null> }} Session */
 
 /** @type {Map<string, Session>} */
 const sessions = new Map();
@@ -158,6 +158,7 @@ function buildStateForPlayer(session, viewerId) {
     myPlayerId: viewerId,
     revealed: session.revealed,
     gameOver: session.gameOver,
+    anonymousMode: session.anonymousMode === true,
     players,
     voteByPlayer,
     expiresAt: session.expiresAt,
@@ -316,6 +317,7 @@ function attachSocketHandlers(wss) {
           exists,
           invalid: false,
           playerNames,
+          anonymousMode: exists ? session.anonymousMode === true : false,
         })
       );
       return;
@@ -346,12 +348,14 @@ function attachSocketHandlers(wss) {
       const creatorId = randomUUID();
       const expiresAt = Date.now() + SESSION_TTL_MS;
       const role = parsePlayerRole(msg.role) ?? "product";
+      const anonymousMode = msg.anonymousMode === true;
       /** @type {Session} */
       const session = {
         id: sessionId,
         revealed: false,
         gameOver: false,
         expiresAt,
+        anonymousMode,
         players: new Map([[creatorId, { name, online: true, role }]]),
         votes: new Map(),
       };
