@@ -20,6 +20,8 @@ export type SessionState = {
   gameOver: boolean;
   /** Unix ms when the server drops this table (2 hours after creation). */
   expiresAt: number;
+  /** When true, joiners get generated nicknames (legacy default). */
+  anonymousMode?: boolean;
   players: PlayerRow[];
   voteByPlayer: Record<string, SerializedVote>;
 };

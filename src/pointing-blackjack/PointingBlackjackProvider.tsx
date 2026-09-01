@@ -45,6 +45,8 @@ export type SessionProbeResult = {
   unreachable?: boolean;
   /** Present when the session exists — used to avoid duplicate codenames. */
   playerNames?: string[];
+  /** Present when the session exists — joiners skip the name field when true. */
+  anonymousMode?: boolean;
 };
 
 const SESSION_EXISTS_PROBE_TIMEOUT_MS = 15_000;
@@ -55,7 +57,7 @@ type Ctx = {
   lastError: string | null;
   createSession: (
     name: string,
-    options?: { sessionId?: string; role?: PlayerRole }
+    options?: { sessionId?: string; role?: PlayerRole; anonymousMode?: boolean }
   ) => void;
   joinSession: (
     sessionId: string,
@@ -209,6 +211,7 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
               exists?: boolean;
               invalid?: boolean;
               playerNames?: unknown;
+              anonymousMode?: boolean;
             };
             const sid = typeof m.sessionId === "string" ? m.sessionId : "";
             if (!sid) return;
@@ -217,7 +220,13 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
             const playerNames = Array.isArray(m.playerNames)
               ? m.playerNames.filter((n): n is string => typeof n === "string")
               : undefined;
-            flushSessionExistsWaiters(sid, { exists, invalid, playerNames });
+            const anonymousMode = m.anonymousMode === true;
+            flushSessionExistsWaiters(sid, {
+              exists,
+              invalid,
+              playerNames,
+              anonymousMode,
+            });
           }
           if (msg.type === "error" && msg.message) {
             if (msg.message === "Not in a session") {
@@ -374,7 +383,10 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
   sendWhenReadyRef.current = sendWhenReady;
 
   const createSession = useCallback(
-    (name: string, options?: { sessionId?: string; role?: PlayerRole }) => {
+    (
+      name: string,
+      options?: { sessionId?: string; role?: PlayerRole; anonymousMode?: boolean }
+    ) => {
       const n = name.trim();
       if (!n) return;
       setState(null);
@@ -382,6 +394,7 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
       sendWhenReady({
         type: "create",
         name: n,
+        anonymousMode: options?.anonymousMode === true,
         ...(sid ? { sessionId: sid } : {}),
         ...(options?.role ? { role: options.role } : {}),
       });

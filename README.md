@@ -8,7 +8,7 @@ Originally extracted from [tyler.cloud](https://github.com/tylerjwoodfin/tyler.c
 
 ## Features
 
-- Create a session and share an invite link (or join anonymously from the link)
+- Create a session and share an invite link. Joiners enter a name unless the host enables Anonymous Mode (generated nicknames, same as before).
 - Product / QA / Dev roles at the table
 - Real-time votes and reveal
 - BRB / away status for players

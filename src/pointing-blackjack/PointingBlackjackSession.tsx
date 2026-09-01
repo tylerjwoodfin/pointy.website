@@ -11,10 +11,14 @@ import {
 import { lobbyPath, sessionPath } from "./paths";
 import { isValidRoomCode } from "./roomCode";
 import { PointyFeedbackModal } from "./PointyFeedbackModal";
-import { uniqueCodename } from "./codename";
 import { teamVoteParticipation } from "./teamVoteParticipation";
 import type { RoleParticipation, TeamVoteParticipation } from "./teamVoteParticipation";
 import type { PlayerRole, PlayerRow, VoteValue } from "./types";
+import {
+  JOIN_BUTTONS,
+  MISSING_START_BUTTONS,
+  SessionEntryForm,
+} from "./SessionEntryForm";
 
 type RoomPhase = "loading" | "unreachable" | "invalid" | "missing" | "exists";
 
@@ -305,6 +309,7 @@ export const PointingBlackjackSession: React.FC = () => {
   /** Bumps the room probe when the user retries after a connection failure. */
   const [probeNonce, setProbeNonce] = useState(0);
   const [sessionPlayerNames, setSessionPlayerNames] = useState<string[]>([]);
+  const [sessionAnonymousMode, setSessionAnonymousMode] = useState(false);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -344,6 +349,7 @@ export const PointingBlackjackSession: React.FC = () => {
     }
     setRoomPhase("loading");
     setSessionPlayerNames([]);
+    setSessionAnonymousMode(false);
     void querySessionExists(paramId).then((r) => {
       if (cancelled) return;
       if (stateRef.current?.sessionId === paramId) return;
@@ -351,6 +357,7 @@ export const PointingBlackjackSession: React.FC = () => {
       else if (r.invalid) setRoomPhase("invalid");
       else if (r.exists) {
         setSessionPlayerNames(r.playerNames ?? []);
+        setSessionAnonymousMode(r.anonymousMode === true);
         setRoomPhase("exists");
       } else setRoomPhase("missing");
     });
@@ -381,28 +388,19 @@ export const PointingBlackjackSession: React.FC = () => {
     clearLastError();
   }, [lastError, roomPhase, clearLastError]);
 
-  const joinAsProduct = useCallback(() => {
-    if (!paramId) return;
-    autoJoinTried.current = true;
-    joinSession(paramId, uniqueCodename(sessionPlayerNames), { role: "product" });
-  }, [paramId, joinSession, sessionPlayerNames]);
-
-  const joinAsQa = useCallback(() => {
-    if (!paramId) return;
-    autoJoinTried.current = true;
-    joinSession(paramId, uniqueCodename(sessionPlayerNames), { role: "qa" });
-  }, [paramId, joinSession, sessionPlayerNames]);
-
-  const joinAsDev = useCallback(() => {
-    if (!paramId) return;
-    autoJoinTried.current = true;
-    joinSession(paramId, uniqueCodename(sessionPlayerNames), { role: "dev" });
-  }, [paramId, joinSession, sessionPlayerNames]);
+  const joinWithRole = useCallback(
+    (role: PlayerRole, name: string) => {
+      if (!paramId) return;
+      autoJoinTried.current = true;
+      joinSession(paramId, name, { role });
+    },
+    [paramId, joinSession]
+  );
 
   const startMissingAs = useCallback(
-    (role: PlayerRole) => {
+    (role: PlayerRole, name: string, anonymousMode: boolean) => {
       if (!paramId) return;
-      createSession(uniqueCodename([]), { sessionId: paramId, role });
+      createSession(name, { sessionId: paramId, role, anonymousMode });
     },
     [paramId, createSession]
   );
@@ -497,34 +495,13 @@ export const PointingBlackjackSession: React.FC = () => {
               Room <strong className="pb-code">{paramId}</strong> isn&apos;t active. You can
               start it and keep this exact link.
             </p>
-            <div className="pb-join-options">
-              <div className="pb-join-options__buttons">
-                <button
-                  type="button"
-                  className="pb-button pb-button--ghost"
-                  disabled={connectionStatus === "connecting"}
-                  onClick={() => startMissingAs("dev")}
-                >
-                  Start as Dev
-                </button>
-                <button
-                  type="button"
-                  className="pb-button pb-button--primary"
-                  disabled={connectionStatus === "connecting"}
-                  onClick={() => startMissingAs("product")}
-                >
-                  Start as Product
-                </button>
-                <button
-                  type="button"
-                  className="pb-button pb-button--ghost"
-                  disabled={connectionStatus === "connecting"}
-                  onClick={() => startMissingAs("qa")}
-                >
-                  Start as QA
-                </button>
-              </div>
-            </div>
+            <SessionEntryForm
+              busy={connectionStatus === "connecting"}
+              buttons={MISSING_START_BUTTONS}
+              onSubmit={({ role, name, anonymousMode }) => {
+                startMissingAs(role, name, anonymousMode);
+              }}
+            />
             {lastError ? <p className="pb-error">{lastError}</p> : null}
           </section>
         </div>
@@ -547,34 +524,15 @@ export const PointingBlackjackSession: React.FC = () => {
           <p className="pb-muted">
             Room <strong className="pb-code">{paramId}</strong>
           </p>
-          <div className="pb-join-options">
-            <div className="pb-join-options__buttons">
-              <button
-                type="button"
-                className="pb-button pb-button--primary"
-                disabled={connectionStatus === "connecting"}
-                onClick={joinAsDev}
-              >
-                Join as Dev
-              </button>
-              <button
-                type="button"
-                className="pb-button pb-button--ghost"
-                disabled={connectionStatus === "connecting"}
-                onClick={joinAsQa}
-              >
-                Join as QA
-              </button>
-              <button
-                type="button"
-                className="pb-button pb-button--ghost"
-                disabled={connectionStatus === "connecting"}
-                onClick={joinAsProduct}
-              >
-                Join as Product
-              </button>
-            </div>
-          </div>
+          <SessionEntryForm
+            busy={connectionStatus === "connecting"}
+            buttons={JOIN_BUTTONS}
+            lockedAnonymousMode={sessionAnonymousMode}
+            existingNames={sessionPlayerNames}
+            onSubmit={({ role, name }) => {
+              joinWithRole(role, name);
+            }}
+          />
           {lastError ? <p className="pb-error">{lastError}</p> : null}
         </section>
       </div>

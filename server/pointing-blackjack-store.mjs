@@ -8,7 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 /**
  * @typedef {'product' | 'qa' | 'dev'} PlayerRole
  * @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole }} Player
- * @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, players: Map<string, Player>, votes: Map<string, number|null> }} Session
+ * @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, anonymousMode?: boolean, players: Map<string, Player>, votes: Map<string, number|null> }} Session
  */
 
 /**
@@ -32,6 +32,8 @@ export function createPointingStore(cfg) {
 
   /** @type {boolean | null} */
   let roleColumnSupported = null;
+  /** @type {boolean | null} */
+  let anonymousModeColumnSupported = null;
 
   /**
    * @param {unknown} error
@@ -43,6 +45,25 @@ export function createPointingStore(cfg) {
       "code" in error &&
       /** @type {{ code?: string }} */ (error).code === "42703"
     );
+  }
+
+  /**
+   * @param {unknown} error
+   */
+  function isMissingAnonymousModeColumn(error) {
+    if (
+      typeof error !== "object" ||
+      error === null ||
+      !("code" in error) ||
+      /** @type {{ code?: string }} */ (error).code !== "42703"
+    ) {
+      return false;
+    }
+    const message =
+      "message" in error && typeof error.message === "string"
+        ? error.message
+        : "";
+    return /anonymous_mode/i.test(message);
   }
 
   /**
@@ -108,14 +129,42 @@ export function createPointingStore(cfg) {
   /**
    * @param {Session} session
    */
-  async function persistSession(session) {
-    const { error: sessionErr } = await supabase.from("pointing_sessions").upsert({
+  async function upsertSessionRow(session) {
+    const base = {
       id: session.id,
       revealed: session.revealed,
       game_over: session.gameOver,
       expires_at: new Date(session.expiresAt).toISOString(),
-    });
-    if (sessionErr) throw sessionErr;
+    };
+    const withFlag = {
+      ...base,
+      anonymous_mode: session.anonymousMode === true,
+    };
+
+    if (anonymousModeColumnSupported === false) {
+      const { error } = await supabase.from("pointing_sessions").upsert(base);
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase.from("pointing_sessions").upsert(withFlag);
+    if (error && isMissingAnonymousModeColumn(error)) {
+      anonymousModeColumnSupported = false;
+      console.warn(
+        "pointing_sessions.anonymous_mode column missing — run supabase/migrations/20260831000000_pointing_anonymous_mode.sql"
+      );
+      await upsertSessionRow(session);
+      return;
+    }
+    if (error) throw error;
+    anonymousModeColumnSupported = true;
+  }
+
+  /**
+   * @param {Session} session
+   */
+  async function persistSession(session) {
+    await upsertSessionRow(session);
 
     const { error: deleteVotesErr } = await supabase
       .from("pointing_votes")
@@ -173,12 +222,36 @@ export function createPointingStore(cfg) {
    */
   async function hydrateSessions(sessions) {
     const now = new Date().toISOString();
-    const { data: sessionRows, error: sessionErr } = await supabase
-      .from("pointing_sessions")
-      .select("id, revealed, game_over, expires_at")
-      .gt("expires_at", now)
-      .eq("game_over", false);
-    if (sessionErr) throw sessionErr;
+    const selectWithFlag = "id, revealed, game_over, expires_at, anonymous_mode";
+    const selectLegacy = "id, revealed, game_over, expires_at";
+
+    let sessionRows;
+    if (anonymousModeColumnSupported === false) {
+      const { data, error } = await supabase
+        .from("pointing_sessions")
+        .select(selectLegacy)
+        .gt("expires_at", now)
+        .eq("game_over", false);
+      if (error) throw error;
+      sessionRows = data;
+    } else {
+      const { data, error } = await supabase
+        .from("pointing_sessions")
+        .select(selectWithFlag)
+        .gt("expires_at", now)
+        .eq("game_over", false);
+      if (error && isMissingAnonymousModeColumn(error)) {
+        anonymousModeColumnSupported = false;
+        console.warn(
+          "pointing_sessions.anonymous_mode column missing — run supabase/migrations/20260831000000_pointing_anonymous_mode.sql"
+        );
+        await hydrateSessions(sessions);
+        return;
+      }
+      if (error) throw error;
+      anonymousModeColumnSupported = true;
+      sessionRows = data;
+    }
 
     for (const row of sessionRows ?? []) {
       const playerRows = await fetchPlayerRows(row.id);
@@ -195,6 +268,7 @@ export function createPointingStore(cfg) {
         revealed: row.revealed === true,
         gameOver: row.game_over === true,
         expiresAt: new Date(row.expires_at).getTime(),
+        anonymousMode: row.anonymous_mode === true,
         players: new Map(
           playerRows.map((p) => [
             p.id,

@@ -130,6 +130,33 @@ $pb-card-red: #c0392b;
   }
 }
 
+.pb-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  color: $pb-text;
+  cursor: pointer;
+  line-height: 1.35;
+
+  input {
+    margin: 0;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: $pb-accent;
+    cursor: pointer;
+  }
+
+  &__hint {
+    display: block;
+    color: $pb-muted;
+    font-size: 14px;
+    margin: 4px 0 0 28px;
+    line-height: 1.4;
+  }
+}
+
 $pb-glow-green: 0 0 12px rgba(62, 207, 142, 0.65);
 $pb-glow-green-lg: 0 0 18px rgba(62, 207, 142, 0.4);
 $pb-glow-blue: 0 0 12px rgba(74, 165, 255, 0.55);
