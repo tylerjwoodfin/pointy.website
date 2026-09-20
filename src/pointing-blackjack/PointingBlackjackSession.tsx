@@ -11,6 +11,7 @@ import {
 import { lobbyPath, sessionPath } from "./paths";
 import { isValidRoomCode } from "./roomCode";
 import { PointyFeedbackModal } from "./PointyFeedbackModal";
+import { showNoVoteFrown } from "./showNoVoteFrown";
 import { teamVoteParticipation } from "./teamVoteParticipation";
 import type { RoleParticipation, TeamVoteParticipation } from "./teamVoteParticipation";
 import type { PlayerRole, PlayerRow, VoteValue } from "./types";
@@ -646,14 +647,14 @@ export const PointingBlackjackSession: React.FC = () => {
               formatVoteDisplay(v, true)
             ) : brb ? (
               <span className="pb-vote-brb-label">BRB</span>
-            ) : (
+            ) : showNoVoteFrown(p.role) ? (
               <>
                 <span className="pb-frown" aria-hidden>
                   ☹️
                 </span>{" "}
                 no vote
               </>
-            )}
+            ) : null}
           </span>
         </li>
       );
