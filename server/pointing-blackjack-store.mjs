@@ -4,11 +4,13 @@
  */
 import WebSocket from "ws";
 import { createClient } from "@supabase/supabase-js";
+import { emptyParticipation, normalizeParticipation, touchParticipant } from "./session-summary.mjs";
 
 /**
  * @typedef {'product' | 'qa' | 'dev'} PlayerRole
  * @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole }} Player
- * @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, anonymousMode?: boolean, players: Map<string, Player>, votes: Map<string, number|null> }} Session
+ * @typedef {{ rounds: number, sent: boolean, players: Record<string, { name: string, role: string, votes: number }> }} Participation
+ * @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, anonymousMode?: boolean, players: Map<string, Player>, votes: Map<string, number|null>, participation?: Participation }} Session
  */
 
 /**
@@ -34,6 +36,8 @@ export function createPointingStore(cfg) {
   let roleColumnSupported = null;
   /** @type {boolean | null} */
   let anonymousModeColumnSupported = null;
+  /** @type {boolean | null} */
+  let participationColumnSupported = null;
 
   /**
    * @param {unknown} error
@@ -64,6 +68,23 @@ export function createPointingStore(cfg) {
         ? error.message
         : "";
     return /anonymous_mode/i.test(message);
+  }
+
+  /**
+   * @param {unknown} error
+   */
+  function isMissingParticipationColumn(error) {
+    if (
+      typeof error !== "object" ||
+      error === null ||
+      !("code" in error) ||
+      /** @type {{ code?: string }} */ (error).code !== "42703"
+    ) {
+      return false;
+    }
+    const message =
+      "message" in error && typeof error.message === "string" ? error.message : "";
+    return /participation/i.test(message);
   }
 
   /**
@@ -130,24 +151,21 @@ export function createPointingStore(cfg) {
    * @param {Session} session
    */
   async function upsertSessionRow(session) {
-    const base = {
+    /** @type {Record<string, unknown>} */
+    const row = {
       id: session.id,
       revealed: session.revealed,
       game_over: session.gameOver,
       expires_at: new Date(session.expiresAt).toISOString(),
     };
-    const withFlag = {
-      ...base,
-      anonymous_mode: session.anonymousMode === true,
-    };
-
-    if (anonymousModeColumnSupported === false) {
-      const { error } = await supabase.from("pointing_sessions").upsert(base);
-      if (error) throw error;
-      return;
+    if (anonymousModeColumnSupported !== false) {
+      row.anonymous_mode = session.anonymousMode === true;
+    }
+    if (participationColumnSupported !== false) {
+      row.participation = session.participation ?? emptyParticipation();
     }
 
-    const { error } = await supabase.from("pointing_sessions").upsert(withFlag);
+    const { error } = await supabase.from("pointing_sessions").upsert(row);
     if (error && isMissingAnonymousModeColumn(error)) {
       anonymousModeColumnSupported = false;
       console.warn(
@@ -156,8 +174,17 @@ export function createPointingStore(cfg) {
       await upsertSessionRow(session);
       return;
     }
+    if (error && isMissingParticipationColumn(error)) {
+      participationColumnSupported = false;
+      console.warn(
+        "pointing_sessions.participation column missing — run supabase/migrations/20260921000000_pointing_participation.sql"
+      );
+      await upsertSessionRow(session);
+      return;
+    }
     if (error) throw error;
-    anonymousModeColumnSupported = true;
+    if (anonymousModeColumnSupported !== false) anonymousModeColumnSupported = true;
+    if (participationColumnSupported !== false) participationColumnSupported = true;
   }
 
   /**
@@ -220,38 +247,39 @@ export function createPointingStore(cfg) {
    * Load live sessions from Supabase into the in-memory map.
    * @param {Map<string, Session>} sessions
    */
-  async function hydrateSessions(sessions) {
+  async function fetchSessionRows() {
     const now = new Date().toISOString();
-    const selectWithFlag = "id, revealed, game_over, expires_at, anonymous_mode";
-    const selectLegacy = "id, revealed, game_over, expires_at";
+    const columns = ["id", "revealed", "game_over", "expires_at"];
+    if (anonymousModeColumnSupported !== false) columns.push("anonymous_mode");
+    if (participationColumnSupported !== false) columns.push("participation");
 
-    let sessionRows;
-    if (anonymousModeColumnSupported === false) {
-      const { data, error } = await supabase
-        .from("pointing_sessions")
-        .select(selectLegacy)
-        .gt("expires_at", now)
-        .eq("game_over", false);
-      if (error) throw error;
-      sessionRows = data;
-    } else {
-      const { data, error } = await supabase
-        .from("pointing_sessions")
-        .select(selectWithFlag)
-        .gt("expires_at", now)
-        .eq("game_over", false);
-      if (error && isMissingAnonymousModeColumn(error)) {
-        anonymousModeColumnSupported = false;
-        console.warn(
-          "pointing_sessions.anonymous_mode column missing — run supabase/migrations/20260831000000_pointing_anonymous_mode.sql"
-        );
-        await hydrateSessions(sessions);
-        return;
-      }
-      if (error) throw error;
-      anonymousModeColumnSupported = true;
-      sessionRows = data;
+    const { data, error } = await supabase
+      .from("pointing_sessions")
+      .select(columns.join(", "))
+      .gt("expires_at", now)
+      .eq("game_over", false);
+    if (error && isMissingAnonymousModeColumn(error)) {
+      anonymousModeColumnSupported = false;
+      console.warn(
+        "pointing_sessions.anonymous_mode column missing — run supabase/migrations/20260831000000_pointing_anonymous_mode.sql"
+      );
+      return fetchSessionRows();
     }
+    if (error && isMissingParticipationColumn(error)) {
+      participationColumnSupported = false;
+      console.warn(
+        "pointing_sessions.participation column missing — run supabase/migrations/20260921000000_pointing_participation.sql"
+      );
+      return fetchSessionRows();
+    }
+    if (error) throw error;
+    if (anonymousModeColumnSupported !== false) anonymousModeColumnSupported = true;
+    if (participationColumnSupported !== false) participationColumnSupported = true;
+    return data ?? [];
+  }
+
+  async function hydrateSessions(sessions) {
+    const sessionRows = await fetchSessionRows();
 
     for (const row of sessionRows ?? []) {
       const playerRows = await fetchPlayerRows(row.id);
@@ -285,7 +313,13 @@ export function createPointingStore(cfg) {
           ])
         ),
         votes: new Map((voteRows ?? []).map((v) => [v.player_id, v.value])),
+        participation: normalizeParticipation(
+          "participation" in row ? row.participation : null
+        ),
       };
+      for (const [playerId, player] of session.players) {
+        touchParticipant(session.participation, playerId, player);
+      }
       sessions.set(row.id, session);
     }
   }
