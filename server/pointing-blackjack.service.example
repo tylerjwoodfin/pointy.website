@@ -32,6 +32,11 @@ Environment=SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 Environment=SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 # Feedback → Taiga bridge (must match Pages secret POINTY_FEEDBACK_SECRET)
 # Environment=POINTY_FEEDBACK_SECRET=generate-a-long-random-string
+# Session summary email (optional). Falls back to Cabinet keys.resend.token and
+# pointy.feedback_email_from / pointy.feedback_email_to — same mailbox as Pointy feedback.
+# Environment=RESEND_API_KEY=
+# Environment=FEEDBACK_EMAIL_FROM=
+# Environment=FEEDBACK_EMAIL_TO=
 # Optional Taiga overrides (otherwise loaded from Cabinet taiga.*):
 # Environment=TAIGA_API_ROOT=http://172.25.0.8:8000/api/v1
 # Environment=TAIGA_AUTH_TOKEN=

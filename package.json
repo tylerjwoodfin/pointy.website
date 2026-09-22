@@ -28,6 +28,7 @@
     "start:lan": "BROWSER=none HOST=0.0.0.0 craco start",
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
+    "test:server": "node --test server/*.test.mjs",
     "eject": "react-scripts eject",
     "server": "node server/pointing-blackjack.mjs",
     "dev": "concurrently -n web,sock -c blue,green \"PORT=3000 POINTING_BLACKJACK_PORT=3333 BROWSER=none HOST=0.0.0.0 craco start\" \"POINTING_BLACKJACK_PORT=3333 npm run server\""

@@ -17,6 +17,7 @@ Originally extracted from [tyler.cloud](https://github.com/tylerjwoodfin/tyler.c
 - In-session feedback form
 - Session persistence in Supabase (survives server restarts; 2-hour TTL)
 - Usage metrics via [Cabinet](https://github.com/tylerjwoodfin/cabinet) (`pointy` tag) on session start, join, vote, and reveal
+- After everyone leaves a session of 3 or more people, email an HTML table of vote totals (`Tyler` / `4 out of 5 rounds`) to the same address as Pointy feedback. Players named BA are omitted.
 
 ## Quick start
 

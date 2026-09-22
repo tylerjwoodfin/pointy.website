@@ -17,6 +17,19 @@ import {
 } from "./pointing-blackjack-store.mjs";
 import { cabinetLog } from "./cabinet-log.mjs";
 import { createPointyFeedbackTicket } from "./taiga-feedback.mjs";
+import {
+  emptyParticipation,
+  formatSessionSummary,
+  formatSessionSummaryHtml,
+  OFFLINE_SUMMARY_GRACE_MS,
+  recordRevealedRound,
+  summaryDelayMs,
+  touchParticipant,
+} from "./session-summary.mjs";
+import {
+  sendSessionSummaryEmail,
+  SESSION_SUMMARY_SUBJECT,
+} from "./session-summary-mail.mjs";
 
 const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
 const FEEDBACK_PATH = "/create-pointy-feedback";
@@ -26,7 +39,8 @@ const EXPIRED_SESSION_CLEANUP_MS = 10 * 60 * 1000;
 
 /** @typedef {'product' | 'qa' | 'dev'} PlayerRole */
 /** @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole }} Player */
-/** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, anonymousMode?: boolean, players: Map<string, Player>, votes: Map<string, number|null> }} Session */
+/** @typedef {{ rounds: number, sent: boolean, players: Record<string, { name: string, role: string, votes: number }> }} Participation */
+/** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, anonymousMode?: boolean, players: Map<string, Player>, votes: Map<string, number|null>, participation: Participation, summaryAttempts?: number }} Session */
 
 /** @type {Map<string, Session>} */
 const sessions = new Map();
@@ -36,6 +50,10 @@ const socketMeta = new Map();
 const roomSockets = new Map();
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const sessionExpiryTimers = new Map();
+/** @type {Map<string, ReturnType<typeof setTimeout>>} */
+const summaryTimers = new Map();
+/** Session ids whose summary email is in flight or already accepted. */
+const summaryClaimed = new Set();
 
 /** @type {ReturnType<typeof createPointingStore> | null} */
 let store = null;
@@ -103,17 +121,128 @@ function deleteEmptySession(sessionId) {
 }
 
 /**
+ * @param {Session} session
+ */
+function countOnline(session) {
+  let online = 0;
+  for (const player of session.players.values()) {
+    if (player.online !== false) online += 1;
+  }
+  return online;
+}
+
+function clearSummaryTimer(sessionId) {
+  const timer = summaryTimers.get(sessionId);
+  if (timer) {
+    clearTimeout(timer);
+    summaryTimers.delete(sessionId);
+  }
+}
+
+/**
+ * Email vote totals once nobody is left in the room.
+ * @param {string} sessionId
+ * @param {Participation} participation
+ * @param {{ persist: boolean }} options
+ */
+async function deliverSessionSummary(sessionId, participation, options) {
+  if (participation.sent || summaryClaimed.has(sessionId)) return;
+  const text = formatSessionSummary(participation);
+  if (!text.trim()) return;
+  summaryClaimed.add(sessionId);
+  const ok = await sendSessionSummaryEmail({
+    subject: SESSION_SUMMARY_SUBJECT,
+    text: [`Room: ${sessionId}`, "", text].join("\n"),
+    html: formatSessionSummaryHtml(participation, sessionId),
+  });
+  if (!ok) {
+    summaryClaimed.delete(sessionId);
+    const session = sessions.get(sessionId);
+    if (!session || !options.persist) return;
+    session.summaryAttempts = (session.summaryAttempts || 0) + 1;
+    if (session.summaryAttempts >= 3) return;
+    clearSummaryTimer(sessionId);
+    const timer = setTimeout(() => {
+      summaryTimers.delete(sessionId);
+      const current = sessions.get(sessionId);
+      if (!current) return;
+      if (
+        summaryDelayMs({
+          online: countOnline(current),
+          playersRemaining: current.players.size,
+          participation: current.participation,
+        }) == null
+      ) {
+        return;
+      }
+      void deliverSessionSummary(sessionId, current.participation, { persist: true });
+    }, OFFLINE_SUMMARY_GRACE_MS);
+    summaryTimers.set(sessionId, timer);
+    return;
+  }
+  participation.sent = true;
+  cabinetLog(
+    `session summary emailed sessionId=${sessionId} rounds=${participation.rounds}`
+  );
+  if (options.persist) {
+    const session = sessions.get(sessionId);
+    if (session) void saveSession(session);
+  }
+}
+
+function scheduleSummaryCheck(sessionId) {
+  clearSummaryTimer(sessionId);
+  const session = sessions.get(sessionId);
+  if (!session) return;
+  if (!session.participation) session.participation = emptyParticipation();
+  const delay = summaryDelayMs({
+    online: countOnline(session),
+    playersRemaining: session.players.size,
+    participation: session.participation,
+  });
+  if (delay == null) return;
+  const timer = setTimeout(() => {
+    summaryTimers.delete(sessionId);
+    const current = sessions.get(sessionId);
+    if (!current) return;
+    if (
+      summaryDelayMs({
+        online: countOnline(current),
+        playersRemaining: current.players.size,
+        participation: current.participation,
+      }) == null
+    ) {
+      return;
+    }
+    void deliverSessionSummary(sessionId, current.participation, { persist: true });
+  }, delay);
+  summaryTimers.set(sessionId, timer);
+}
+
+/**
  * End session after the configured TTL (2 hours).
  * @param {string} sessionId
  */
 function expireSession(sessionId) {
   clearSessionExpiryTimer(sessionId);
+  clearSummaryTimer(sessionId);
   const session = sessions.get(sessionId);
   if (!session) return;
+  if (!session.participation) session.participation = emptyParticipation();
+  const emailNow =
+    summaryDelayMs({
+      online: countOnline(session),
+      playersRemaining: session.players.size,
+      participation: session.participation,
+    }) != null;
+  const participation = session.participation;
   session.gameOver = true;
   broadcastSession(sessionId);
   closeAllSessionSockets(sessionId);
   sessions.delete(sessionId);
+  if (emailNow) {
+    void deliverSessionSummary(sessionId, participation, { persist: false });
+  }
   void removeSessionFromStore(sessionId);
 }
 
@@ -232,11 +361,16 @@ function registerPlayerSocket(ws, session, playerId) {
   if (prev && prev.sessionId !== session.id) {
     removeFromRoom(prev.sessionId, ws);
   }
+  if (!session.participation) session.participation = emptyParticipation();
   const pl = session.players.get(playerId);
-  if (pl) pl.online = true;
+  if (pl) {
+    pl.online = true;
+    touchParticipant(session.participation, playerId, pl);
+  }
   socketMeta.set(ws, { sessionId: session.id, playerId });
   addToRoom(session.id, ws);
   broadcastSession(session.id);
+  scheduleSummaryCheck(session.id);
 }
 
 /**
@@ -265,6 +399,7 @@ function handleClose(ws) {
   }
 
   broadcastSession(sessionId);
+  scheduleSummaryCheck(sessionId);
 }
 
 function markSocketAlive(ws) {
@@ -350,6 +485,8 @@ function attachSocketHandlers(wss) {
       const role = parsePlayerRole(msg.role) ?? "product";
       const anonymousMode = msg.anonymousMode === true;
       /** @type {Session} */
+      const participation = emptyParticipation();
+      touchParticipant(participation, creatorId, { name, role });
       const session = {
         id: sessionId,
         revealed: false,
@@ -358,6 +495,7 @@ function attachSocketHandlers(wss) {
         anonymousMode,
         players: new Map([[creatorId, { name, online: true, role }]]),
         votes: new Map(),
+        participation,
       };
       sessions.set(sessionId, session);
       scheduleSessionExpiry(sessionId);
@@ -394,6 +532,7 @@ function attachSocketHandlers(wss) {
         if (pl) {
           pl.name = name;
           pl.online = true;
+          if (!pl.role) pl.role = role;
         }
       } else if (playerId) {
         session.players.set(playerId, { name, online: true, role });
@@ -401,6 +540,9 @@ function attachSocketHandlers(wss) {
         playerId = randomUUID();
         session.players.set(playerId, { name, online: true, role });
       }
+      if (!session.participation) session.participation = emptyParticipation();
+      const joined = session.players.get(playerId);
+      if (joined) touchParticipant(session.participation, playerId, joined);
       registerPlayerSocket(ws, session, playerId);
       void saveSession(session);
       cabinetLog(
@@ -431,6 +573,7 @@ function attachSocketHandlers(wss) {
       socketMeta.delete(ws);
       removeFromRoom(meta.sessionId, ws);
       broadcastSession(meta.sessionId);
+      scheduleSummaryCheck(meta.sessionId);
       void saveSession(session);
       return;
     }
@@ -451,9 +594,11 @@ function attachSocketHandlers(wss) {
         sendError(ws, "Name required");
         return;
       }
+      if (!session.participation) session.participation = emptyParticipation();
       const pl = session.players.get(meta.playerId);
       if (pl) {
         pl.name = name;
+        touchParticipant(session.participation, meta.playerId, pl);
         broadcastSession(session.id);
         void saveSession(session);
       }
@@ -488,6 +633,10 @@ function attachSocketHandlers(wss) {
     }
 
     if (msg.type === "reveal") {
+      if (!session.participation) session.participation = emptyParticipation();
+      if (!session.revealed) {
+        recordRevealedRound(session.participation, session.votes.entries());
+      }
       session.revealed = true;
       broadcastSession(session.id);
       void saveSession(session);
@@ -519,6 +668,7 @@ async function main() {
     await store.hydrateSessions(sessions);
     for (const sessionId of sessions.keys()) {
       scheduleSessionExpiry(sessionId);
+      scheduleSummaryCheck(sessionId);
     }
     console.log(`Hydrated ${sessions.size} session(s) from Supabase`);
   } catch (err) {
