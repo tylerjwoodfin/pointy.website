@@ -20,6 +20,7 @@ import { createPointyFeedbackTicket } from "./taiga-feedback.mjs";
 import {
   emptyParticipation,
   formatSessionSummary,
+  formatSessionSummaryHtml,
   OFFLINE_SUMMARY_GRACE_MS,
   recordRevealedRound,
   summaryDelayMs,
@@ -152,6 +153,7 @@ async function deliverSessionSummary(sessionId, participation, options) {
   const ok = await sendSessionSummaryEmail({
     subject: SESSION_SUMMARY_SUBJECT,
     text: [`Room: ${sessionId}`, "", text].join("\n"),
+    html: formatSessionSummaryHtml(participation, sessionId),
   });
   if (!ok) {
     summaryClaimed.delete(sessionId);

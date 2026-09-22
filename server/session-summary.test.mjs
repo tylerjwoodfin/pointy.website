@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   emptyParticipation,
   formatSessionSummary,
+  formatSessionSummaryHtml,
   isExcludedFromSummary,
   LEAVE_SUMMARY_GRACE_MS,
   MIN_SUMMARY_PARTICIPANTS,
@@ -63,6 +64,13 @@ test("formats names and omits BA", () => {
     formatSessionSummary(participation),
     ["jordan / 5 out of 5 rounds", "Tyler / 5 out of 5 rounds"].join("\n")
   );
+  const html = formatSessionSummaryHtml(participation, "room1");
+  assert.match(html, /^<table/);
+  assert.match(html, /<th[^>]*>Name<\/th><th[^>]*>Votes<\/th>/);
+  assert.match(html, /<td[^>]*>Tyler<\/td><td[^>]*>5 out of 5 rounds<\/td>/);
+  assert.match(html, /<td[^>]*>jordan<\/td><td[^>]*>5 out of 5 rounds<\/td>/);
+  assert.equal(html.includes(">BA<"), false);
+  assert.match(formatSessionSummaryHtml(participation, 'a<b>&"'), /Room a&lt;b&gt;&amp;&quot;/);
 });
 
 test("uses singular round when only one round was revealed", () => {
@@ -136,6 +144,7 @@ test("posts the summary to the feedback address", async () => {
   let captured = null;
   const ok = await sendSessionSummaryEmail({
     text: "Tyler / 4 out of 5 rounds",
+    html: "<table><tr><td>Tyler</td><td>4 out of 5 rounds</td></tr></table>",
     config: {
       apiKey: "test-key",
       from: "noreply@example.com",
@@ -158,4 +167,6 @@ test("posts the summary to the feedback address", async () => {
   assert.equal(captured.body.subject, SESSION_SUMMARY_SUBJECT);
   assert.deepEqual(captured.body.to, ["feedback@example.com"]);
   assert.equal(captured.body.text, "Tyler / 4 out of 5 rounds");
+  assert.match(captured.body.html, /<table>/);
+  assert.match(captured.body.html, /4 out of 5 rounds/);
 });

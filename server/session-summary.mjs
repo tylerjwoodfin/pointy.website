@@ -103,18 +103,71 @@ export function recordRevealedRound(participation, votes) {
 }
 
 /**
+ * @param {string} value
+ */
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * @param {ReturnType<typeof emptyParticipation>} participation
+ * @returns {Array<{ name: string, votes: string }>}
+ */
+export function sessionSummaryRows(participation) {
+  const rounds = participation.rounds;
+  const noun = rounds === 1 ? "round" : "rounds";
+  return Object.values(participation.players)
+    .filter((player) => !isExcludedFromSummary(player.name))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
+    .map((player) => ({
+      name: player.name,
+      votes: `${player.votes} out of ${rounds} ${noun}`,
+    }));
+}
+
+/**
+ * Plain-text fallback. The message itself is the HTML table.
  * @param {ReturnType<typeof emptyParticipation>} participation
  * @returns {string}
  */
 export function formatSessionSummary(participation) {
-  const rounds = participation.rounds;
-  const noun = rounds === 1 ? "round" : "rounds";
-  const rows = Object.values(participation.players)
-    .filter((player) => !isExcludedFromSummary(player.name))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-  return rows
-    .map((player) => `${player.name} / ${player.votes} out of ${rounds} ${noun}`)
+  return sessionSummaryRows(participation)
+    .map((row) => `${row.name} / ${row.votes}`)
     .join("\n");
+}
+
+const CELL_STYLE =
+  "border:1px solid #cccccc;padding:8px 12px;text-align:left;font-family:sans-serif;font-size:14px;";
+
+/**
+ * HTML table of names and vote counts.
+ * @param {ReturnType<typeof emptyParticipation>} participation
+ * @param {string} [sessionId]
+ * @returns {string}
+ */
+export function formatSessionSummaryHtml(participation, sessionId) {
+  const rows = sessionSummaryRows(participation);
+  if (!rows.length) return "";
+  const body = rows
+    .map(
+      (row) =>
+        `<tr><td style="${CELL_STYLE}">${escapeHtml(row.name)}</td><td style="${CELL_STYLE}">${escapeHtml(row.votes)}</td></tr>`
+    )
+    .join("");
+  const caption =
+    typeof sessionId === "string" && sessionId.trim()
+      ? `<caption style="caption-side:top;text-align:left;font-family:sans-serif;font-size:14px;padding:0 0 8px;">Room ${escapeHtml(sessionId.trim())}</caption>`
+      : "";
+  return (
+    `<table style="border-collapse:collapse;">` +
+    caption +
+    `<thead><tr><th style="${CELL_STYLE}">Name</th><th style="${CELL_STYLE}">Votes</th></tr></thead>` +
+    `<tbody>${body}</tbody></table>`
+  );
 }
 
 /**

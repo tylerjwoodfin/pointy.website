@@ -70,6 +70,7 @@ export function loadFeedbackMailConfig(env = process.env, readCabinet = cabinetG
 /**
  * @param {{
  *   text: string,
+ *   html?: string,
  *   subject?: string,
  *   config?: { apiKey: string, from: string, to: string } | null,
  *   fetchImpl?: typeof fetch,
@@ -78,7 +79,8 @@ export function loadFeedbackMailConfig(env = process.env, readCabinet = cabinetG
  */
 export async function sendSessionSummaryEmail(params) {
   const text = typeof params.text === "string" ? params.text.trim() : "";
-  if (!text) return false;
+  const html = typeof params.html === "string" ? params.html.trim() : "";
+  if (!text && !html) return false;
 
   const config =
     params.config === undefined ? loadFeedbackMailConfig() : params.config;
@@ -104,6 +106,7 @@ export async function sendSessionSummaryEmail(params) {
         to: [config.to],
         subject,
         text,
+        ...(html ? { html } : {}),
       }),
     });
     if (!res.ok) {
