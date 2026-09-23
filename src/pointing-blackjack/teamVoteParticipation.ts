@@ -22,7 +22,7 @@ function roleParticipation(
   voteByPlayer: Record<string, number | null | "hidden">,
   role: PlayerRole
 ): RoleParticipation | null {
-  const group = players.filter((p) => p.role === role);
+  const group = players.filter((p) => p.role === role && p.online);
   if (group.length === 0) return null;
   const voted = group.filter((p) => hasSubmittedVote(voteByPlayer[p.id])).length;
   return {
@@ -32,7 +32,7 @@ function roleParticipation(
   };
 }
 
-/** Separate Dev and QA vote participation for the current round. */
+/** Separate Dev and QA vote participation for the current round. Offline players are omitted. */
 export function teamVoteParticipation(
   players: PlayerRow[],
   voteByPlayer: Record<string, number | null | "hidden">
