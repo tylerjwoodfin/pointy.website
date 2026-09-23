@@ -11,6 +11,7 @@ import {
   OFFLINE_SUMMARY_GRACE_MS,
   recordRevealedRound,
   summaryDelayMs,
+  summaryEligible,
   touchParticipant,
 } from "./session-summary.mjs";
 import {
@@ -102,12 +103,28 @@ test("BA still counts toward the three-person minimum but is left out of the ema
   assert.equal(formatSessionSummary(participation).includes("BA"), false);
 });
 
+test("the 2-hour expiry still emails while people are in the room", () => {
+  const participation = emptyParticipation();
+  touchParticipant(participation, "a", { name: "Tyler", role: "dev" });
+  touchParticipant(participation, "b", { name: "Jordan", role: "qa" });
+  touchParticipant(participation, "c", { name: "Sam", role: "dev" });
+  recordRevealedRound(participation, [
+    ["a", 5],
+    ["b", 3],
+    ["c", 2],
+  ]);
+
+  assert.equal(summaryEligible(participation), true);
+  assert.equal(summaryDelayMs({ online: 3, playersRemaining: 3, participation }), null);
+});
+
 test("does not email while someone is online, after send, or for a small session", () => {
   const participation = emptyParticipation();
   touchParticipant(participation, "a", { name: "Tyler", role: "dev" });
   touchParticipant(participation, "b", { name: "Jordan", role: "qa" });
   touchParticipant(participation, "c", { name: "Sam", role: "dev" });
 
+  assert.equal(summaryEligible(participation), true);
   assert.equal(summaryDelayMs({ online: 1, playersRemaining: 3, participation }), null);
   assert.equal(
     summaryDelayMs({ online: 0, playersRemaining: 2, participation }),
@@ -120,6 +137,7 @@ test("does not email while someone is online, after send, or for a small session
   assert.equal(summaryDelayMs({ online: 0, playersRemaining: 0, participation: small }), null);
 
   participation.sent = true;
+  assert.equal(summaryEligible(participation), false);
   assert.equal(summaryDelayMs({ online: 0, playersRemaining: 0, participation }), null);
 });
 
