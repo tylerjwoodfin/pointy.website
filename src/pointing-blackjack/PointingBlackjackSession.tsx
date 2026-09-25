@@ -11,6 +11,7 @@ import {
 import { lobbyPath, sessionPath } from "./paths";
 import { isValidRoomCode } from "./roomCode";
 import { PointyFeedbackModal } from "./PointyFeedbackModal";
+import { statusWithCountLabel } from "./liveVoteCounts";
 import { showNoVoteFrown } from "./showNoVoteFrown";
 import { teamVoteParticipation } from "./teamVoteParticipation";
 import type { RoleParticipation, TeamVoteParticipation } from "./teamVoteParticipation";
@@ -604,6 +605,8 @@ export const PointingBlackjackSession: React.FC = () => {
     players.map((p) => {
       const voted = hasSubmittedVote(state.voteByPlayer[p.id]);
       const brb = p.brb === true;
+      const votedLabel = statusWithCountLabel("Voted", p.id, state.liveVoteCounts);
+      const waitingLabel = statusWithCountLabel("Waiting", p.id, state.liveVoteCounts);
       return (
         <tr key={p.id}>
           <td>
@@ -612,20 +615,24 @@ export const PointingBlackjackSession: React.FC = () => {
           <td
             aria-label={
               voted
-                ? "Has voted; value hidden until reveal"
+                ? state.liveVoteCounts
+                  ? `${votedLabel}; value hidden until reveal`
+                  : "Has voted; value hidden until reveal"
                 : brb
                   ? "Be right back"
-                  : "Waiting to vote"
+                  : state.liveVoteCounts
+                    ? waitingLabel
+                    : "Waiting to vote"
             }
           >
             {voted ? (
               <span className="pb-table__vote pb-table__vote--yes">
-                Voted
+                {votedLabel}
               </span>
             ) : brb ? (
               <span className="pb-table__vote pb-table__vote--brb">BRB</span>
             ) : (
-              <span className="pb-table__vote pb-table__vote--no">Waiting</span>
+              <span className="pb-table__vote pb-table__vote--no">{waitingLabel}</span>
             )}
           </td>
         </tr>

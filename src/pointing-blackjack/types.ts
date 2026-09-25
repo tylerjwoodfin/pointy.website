@@ -1,3 +1,5 @@
+import type { LiveVoteCounts } from "./liveVoteCounts";
+
 export type VoteValue = 1 | 2 | 3 | 5 | 8 | 13;
 
 export type SerializedVote = number | null | "hidden";
@@ -24,4 +26,6 @@ export type SessionState = {
   anonymousMode?: boolean;
   players: PlayerRow[];
   voteByPlayer: Record<string, SerializedVote>;
+  /** Present only for Product/BA and players named Tyler. */
+  liveVoteCounts?: LiveVoteCounts;
 };
