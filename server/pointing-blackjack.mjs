@@ -31,6 +31,7 @@ import {
   sendSessionSummaryEmail,
   SESSION_SUMMARY_SUBJECT,
 } from "./session-summary-mail.mjs";
+import { liveVoteCountsForViewer } from "./live-vote-counts.mjs";
 
 const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
 const FEEDBACK_PATH = "/create-pointy-feedback";
@@ -292,7 +293,7 @@ function buildStateForPlayer(session, viewerId) {
     }
   }
 
-  return {
+  const state = {
     sessionId: session.id,
     myPlayerId: viewerId,
     revealed: session.revealed,
@@ -302,6 +303,9 @@ function buildStateForPlayer(session, viewerId) {
     voteByPlayer,
     expiresAt: session.expiresAt,
   };
+  const liveVoteCounts = liveVoteCountsForViewer(session, viewerId);
+  if (liveVoteCounts) state.liveVoteCounts = liveVoteCounts;
+  return state;
 }
 
 function sendJson(ws, payload) {
