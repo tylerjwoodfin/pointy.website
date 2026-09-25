@@ -3,9 +3,10 @@ import type { PlayerRow } from "./types";
 
 function player(
   id: string,
-  role: PlayerRow["role"]
+  role: PlayerRow["role"],
+  online = true
 ): PlayerRow {
-  return { id, name: id, online: true, role };
+  return { id, name: id, online, role };
 }
 
 describe("teamVoteParticipation", () => {
@@ -45,6 +46,37 @@ describe("teamVoteParticipation", () => {
     ).toEqual({
       dev: { voted: 2, total: 2, percent: 100 },
       qa: null,
+    });
+  });
+
+  it("excludes offline players from voted and total", () => {
+    const players = [
+      player("d1", "dev"),
+      player("d2", "dev", false),
+      player("q1", "qa", false),
+      player("q2", "qa"),
+    ];
+    expect(
+      teamVoteParticipation(players, {
+        d1: 5,
+        d2: 8,
+        q1: "hidden",
+        q2: null,
+      })
+    ).toEqual({
+      dev: { voted: 1, total: 1, percent: 100 },
+      qa: { voted: 0, total: 1, percent: 0 },
+    });
+  });
+
+  it("omits a role when every player in it is offline", () => {
+    const players = [
+      player("d1", "dev", false),
+      player("q1", "qa"),
+    ];
+    expect(teamVoteParticipation(players, { d1: 5, q1: 3 })).toEqual({
+      dev: null,
+      qa: { voted: 1, total: 1, percent: 100 },
     });
   });
 

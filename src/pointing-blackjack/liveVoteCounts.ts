@@ -3,7 +3,7 @@ export type LiveVoteCounts = {
   votesByPlayer: Record<string, number>;
 };
 
-/** "Voted 1/5" or "Waiting 1/5" — votes cast out of rounds so far. */
+/** "Voted: 1/5" or "Waiting: 1/5" — votes cast out of rounds so far. */
 export function statusWithCountLabel(
   status: "Voted" | "Waiting",
   playerId: string,

@@ -24,6 +24,7 @@ import {
   OFFLINE_SUMMARY_GRACE_MS,
   recordRevealedRound,
   summaryDelayMs,
+  summaryEligible,
   touchParticipant,
 } from "./session-summary.mjs";
 import {
@@ -141,10 +142,10 @@ function clearSummaryTimer(sessionId) {
 }
 
 /**
- * Email vote totals once nobody is left in the room.
+ * Email vote totals for a finished session.
  * @param {string} sessionId
  * @param {Participation} participation
- * @param {{ persist: boolean }} options
+ * @param {{ persist: boolean, attempt?: number }} options
  */
 async function deliverSessionSummary(sessionId, participation, options) {
   if (participation.sent || summaryClaimed.has(sessionId)) return;
@@ -158,15 +159,24 @@ async function deliverSessionSummary(sessionId, participation, options) {
   });
   if (!ok) {
     summaryClaimed.delete(sessionId);
-    const session = sessions.get(sessionId);
-    if (!session || !options.persist) return;
-    session.summaryAttempts = (session.summaryAttempts || 0) + 1;
-    if (session.summaryAttempts >= 3) return;
+    const attempt = (options.attempt || 0) + 1;
+    if (attempt >= 3) {
+      console.error(`Session summary email gave up sessionId=${sessionId}`);
+      return;
+    }
     clearSummaryTimer(sessionId);
     const timer = setTimeout(() => {
       summaryTimers.delete(sessionId);
       const current = sessions.get(sessionId);
-      if (!current) return;
+      // TTL expiry already dropped the room. Retry with the totals we held,
+      // because they are no longer in memory or Supabase.
+      if (!current) {
+        void deliverSessionSummary(sessionId, participation, {
+          persist: false,
+          attempt,
+        });
+        return;
+      }
       if (
         summaryDelayMs({
           online: countOnline(current),
@@ -176,7 +186,10 @@ async function deliverSessionSummary(sessionId, participation, options) {
       ) {
         return;
       }
-      void deliverSessionSummary(sessionId, current.participation, { persist: true });
+      void deliverSessionSummary(sessionId, current.participation, {
+        persist: true,
+        attempt,
+      });
     }, OFFLINE_SUMMARY_GRACE_MS);
     summaryTimers.set(sessionId, timer);
     return;
@@ -222,6 +235,8 @@ function scheduleSummaryCheck(sessionId) {
 
 /**
  * End session after the configured TTL (2 hours).
+ * People are often still connected when the clock runs out, so eligibility
+ * does not require an empty room.
  * @param {string} sessionId
  */
 function expireSession(sessionId) {
@@ -230,13 +245,8 @@ function expireSession(sessionId) {
   const session = sessions.get(sessionId);
   if (!session) return;
   if (!session.participation) session.participation = emptyParticipation();
-  const emailNow =
-    summaryDelayMs({
-      online: countOnline(session),
-      playersRemaining: session.players.size,
-      participation: session.participation,
-    }) != null;
   const participation = session.participation;
+  const emailNow = summaryEligible(participation);
   session.gameOver = true;
   broadcastSession(sessionId);
   closeAllSessionSockets(sessionId);

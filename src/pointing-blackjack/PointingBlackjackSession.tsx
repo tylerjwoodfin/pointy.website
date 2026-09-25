@@ -12,6 +12,7 @@ import { lobbyPath, sessionPath } from "./paths";
 import { isValidRoomCode } from "./roomCode";
 import { PointyFeedbackModal } from "./PointyFeedbackModal";
 import { statusWithCountLabel } from "./liveVoteCounts";
+import { playersAtTable } from "./playersAtTable";
 import { showNoVoteFrown } from "./showNoVoteFrown";
 import { teamVoteParticipation } from "./teamVoteParticipation";
 import type { RoleParticipation, TeamVoteParticipation } from "./teamVoteParticipation";
@@ -582,22 +583,23 @@ export const PointingBlackjackSession: React.FC = () => {
       ? myVote
       : undefined;
 
-  const playerIds = state.players.map((p) => p.id);
+  const atTable = playersAtTable(state.players);
+  const playerIds = atTable.map((p) => p.id);
   const counts = buildCounts(state.voteByPlayer, playerIds);
   const avg = averageVote(state.voteByPlayer, playerIds);
   const roleAverages = ROLE_AVG_ORDER.map((role) => ({
     role,
     label: ROLE_AVG_LABEL[role],
-    avg: averageVoteForRole(state.players, state.voteByPlayer, role),
-    hasPlayers: state.players.some((p) => p.role === role),
+    avg: averageVoteForRole(atTable, state.voteByPlayer, role),
+    hasPlayers: atTable.some((p) => p.role === role),
   })).filter((row) => row.hasPlayers);
 
   const myPlayer = state.players.find((p) => p.id === state.myPlayerId);
   const myBrb = myPlayer?.brb === true;
-  const productPlayers = state.players.filter((p) => p.role === "product");
-  const teamPlayers = state.players.filter((p) => p.role !== "product");
+  const productPlayers = atTable.filter((p) => p.role === "product");
+  const teamPlayers = atTable.filter((p) => p.role !== "product");
   const teamParticipation = teamVoteParticipation(
-    state.players,
+    atTable,
     state.voteByPlayer
   );
 

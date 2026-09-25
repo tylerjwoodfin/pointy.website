@@ -178,16 +178,29 @@ export function summaryParticipantCount(participation) {
 }
 
 /**
- * Delay before emailing, or null when the room is not ready.
+ * True when this session should get a summary email.
+ * Still-connected players do not block it: the 2-hour expiry is the meeting
+ * ending, and that path emails while people are in the room.
  * Everyone who joined counts toward the minimum, including names omitted from the table.
+ *
+ * @param {ReturnType<typeof emptyParticipation>} participation
+ */
+export function summaryEligible(participation) {
+  if (participation.sent) return false;
+  if (summaryParticipantCount(participation) < MIN_SUMMARY_PARTICIPANTS) return false;
+  if (!formatSessionSummary(participation).trim()) return false;
+  return true;
+}
+
+/**
+ * Delay before emailing after people go offline, or null when the room is not ready.
+ * A live room waits for the session TTL instead of this timer.
  *
  * @param {{ online: number, playersRemaining: number, participation: ReturnType<typeof emptyParticipation> }} state
  * @returns {number | null}
  */
 export function summaryDelayMs(state) {
-  if (state.participation.sent) return null;
+  if (!summaryEligible(state.participation)) return null;
   if (state.online > 0) return null;
-  if (summaryParticipantCount(state.participation) < MIN_SUMMARY_PARTICIPANTS) return null;
-  if (!formatSessionSummary(state.participation).trim()) return null;
   return state.playersRemaining === 0 ? LEAVE_SUMMARY_GRACE_MS : OFFLINE_SUMMARY_GRACE_MS;
 }
