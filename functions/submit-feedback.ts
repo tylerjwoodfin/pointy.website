@@ -4,10 +4,8 @@ export interface Env {
   FEEDBACK_EMAIL_TO: string;
   /**
    * Full URL to the Pointy host bridge, e.g. https://ws.pointy.website/create-pointy-feedback.
-   * FEEDBACK_TAIGA_PROXY_URL is the previous secret name and still works.
    */
   FEEDBACK_VIKUNJA_PROXY_URL?: string;
-  FEEDBACK_TAIGA_PROXY_URL?: string;
   /** Shared secret; must match POINTY_FEEDBACK_SECRET on the WebSocket host. */
   POINTY_FEEDBACK_SECRET: string;
 }
@@ -87,7 +85,7 @@ type FeedbackTicket = {
 };
 
 function feedbackProxyUrl(env: Env): string {
-  return (env.FEEDBACK_VIKUNJA_PROXY_URL || env.FEEDBACK_TAIGA_PROXY_URL || "").trim();
+  return (env.FEEDBACK_VIKUNJA_PROXY_URL || "").trim();
 }
 
 /**
