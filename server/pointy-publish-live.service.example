@@ -1,0 +1,26 @@
+# Checks origin/main and restarts pointing-blackjack when server code changes.
+# Install:
+#   install -m 755 server/publish-live.sh ~/.local/bin/pointy-publish-live
+#   sudo cp server/pointy-publish-live.service.example /etc/systemd/system/pointy-publish-live.service
+#   sudo cp server/pointy-publish-live.timer.example /etc/systemd/system/pointy-publish-live.timer
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now pointy-publish-live.timer
+#
+# Production checkout (not the dev working tree):
+#   git fetch origin main
+#   git worktree add ~/git/pointy.website-live origin/main
+#   npm ci --omit=dev --prefix ~/git/pointy.website-live
+# Point the service at that directory with a drop-in:
+#   /etc/systemd/system/pointing-blackjack.service.d/live-worktree.conf
+#   [Service]
+#   WorkingDirectory=/home/YOUR_UNIX_USER/git/pointy.website-live
+
+[Unit]
+Description=Publish Pointy WebSocket server from origin/main
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=YOUR_UNIX_USER
+ExecStart=/home/YOUR_UNIX_USER/.local/bin/pointy-publish-live

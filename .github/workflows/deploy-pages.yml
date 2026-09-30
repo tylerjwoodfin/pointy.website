@@ -33,6 +33,8 @@ jobs:
           REACT_APP_POINTING_BLACKJACK_WS: wss://ws.pointy.website
           CI: "false"
 
+      # The WebSocket server is a systemd unit on the host. server/publish-live.sh
+      # publishes origin/main there; this workflow only ships the website.
       - name: Deploy production
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v3
