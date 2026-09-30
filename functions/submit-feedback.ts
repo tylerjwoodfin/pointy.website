@@ -2,8 +2,12 @@ export interface Env {
   RESEND_API_KEY: string;
   FEEDBACK_EMAIL_FROM: string;
   FEEDBACK_EMAIL_TO: string;
-  /** Full URL to the Pointy host bridge, e.g. https://ws.pointy.website/create-pointy-feedback */
-  FEEDBACK_TAIGA_PROXY_URL: string;
+  /**
+   * Full URL to the Pointy host bridge, e.g. https://ws.pointy.website/create-pointy-feedback.
+   * FEEDBACK_TAIGA_PROXY_URL is the previous secret name and still works.
+   */
+  FEEDBACK_VIKUNJA_PROXY_URL?: string;
+  FEEDBACK_TAIGA_PROXY_URL?: string;
   /** Shared secret; must match POINTY_FEEDBACK_SECRET on the WebSocket host. */
   POINTY_FEEDBACK_SECRET: string;
 }
@@ -76,25 +80,29 @@ async function allowFeedbackRequest(request: Request): Promise<boolean> {
   return true;
 }
 
-type TaigaTicket = {
+type FeedbackTicket = {
   ref: number;
   id: number;
   url: string;
 };
 
+function feedbackProxyUrl(env: Env): string {
+  return (env.FEEDBACK_VIKUNJA_PROXY_URL || env.FEEDBACK_TAIGA_PROXY_URL || "").trim();
+}
+
 /**
- * Create a Taiga user story via the Pointy WebSocket host (reaches taiga-back).
+ * Create a Vikunja task via the Pointy WebSocket host (reaches the loopback API).
  */
-async function createTaigaTicket(
+async function createFeedbackTicket(
   env: Env,
   subject: string,
   description: string
-): Promise<TaigaTicket> {
-  const proxyUrl = (env.FEEDBACK_TAIGA_PROXY_URL || "").trim();
+): Promise<FeedbackTicket> {
+  const proxyUrl = feedbackProxyUrl(env);
   const secret = (env.POINTY_FEEDBACK_SECRET || "").trim();
   if (!proxyUrl || !secret) {
     throw new Error(
-      "FEEDBACK_TAIGA_PROXY_URL and POINTY_FEEDBACK_SECRET must be configured"
+      "FEEDBACK_VIKUNJA_PROXY_URL and POINTY_FEEDBACK_SECRET must be configured"
     );
   }
 
@@ -109,14 +117,14 @@ async function createTaigaTicket(
 
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Taiga proxy failed (${res.status}): ${text.slice(0, 500)}`);
+    throw new Error(`Feedback proxy failed (${res.status}): ${text.slice(0, 500)}`);
   }
 
-  let parsed: Partial<TaigaTicket>;
+  let parsed: Partial<FeedbackTicket>;
   try {
-    parsed = JSON.parse(text) as Partial<TaigaTicket>;
+    parsed = JSON.parse(text) as Partial<FeedbackTicket>;
   } catch {
-    throw new Error(`Taiga proxy returned non-JSON: ${text.slice(0, 200)}`);
+    throw new Error(`Feedback proxy returned non-JSON: ${text.slice(0, 200)}`);
   }
 
   if (
@@ -125,7 +133,7 @@ async function createTaigaTicket(
     typeof parsed.url !== "string" ||
     !parsed.url
   ) {
-    throw new Error(`Taiga proxy returned unexpected payload: ${text.slice(0, 400)}`);
+    throw new Error(`Feedback proxy returned unexpected payload: ${text.slice(0, 400)}`);
   }
 
   return { ref: parsed.ref, id: parsed.id, url: parsed.url };
@@ -185,16 +193,16 @@ export async function onRequestPost(params: { request: Request; env: Env }) {
 
     const ticketBody = ticketBodyArray.join("\n").trim();
 
-    let ticket: TaigaTicket;
+    let ticket: FeedbackTicket;
     try {
-      ticket = await createTaigaTicket(params.env, "Pointy Feedback", ticketBody);
+      ticket = await createFeedbackTicket(params.env, "Pointy Feedback", ticketBody);
     } catch (error) {
-      console.error("Taiga ticket error:", error);
+      console.error("Vikunja ticket error:", error);
       return new Response("Failed to create feedback ticket", { status: 500 });
     }
 
     const emailBody = [
-      "New Pointy feedback — Taiga ticket created:",
+      "New Pointy feedback — Vikunja ticket created:",
       ticket.url,
       "",
       `Ref: TJW-${ticket.ref}`,

@@ -6,7 +6,7 @@
  * Session state is persisted in Supabase (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY).
  *
  * Also serves POST /create-pointy-feedback (shared-secret) so Cloudflare Pages can
- * create Taiga tickets via this host (which reaches taiga-back).
+ * create Vikunja tickets via this host (which reaches the loopback Vikunja API).
  */
 import http from "http";
 import { WebSocketServer } from "ws";
@@ -16,7 +16,7 @@ import {
   loadSupabaseConfig,
 } from "./pointing-blackjack-store.mjs";
 import { cabinetLog } from "./cabinet-log.mjs";
-import { createPointyFeedbackTicket } from "./taiga-feedback.mjs";
+import { createPointyFeedbackTicket } from "./vikunja-feedback.mjs";
 import {
   emptyParticipation,
   formatSessionSummary,
@@ -738,7 +738,7 @@ async function main() {
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Pointy server on ws://localhost:${PORT}`);
-    console.log(`Pointy feedback Taiga bridge on http://localhost:${PORT}${FEEDBACK_PATH}`);
+    console.log(`Pointy feedback Vikunja bridge on http://localhost:${PORT}${FEEDBACK_PATH}`);
   });
 }
 
@@ -806,7 +806,7 @@ async function handleCreatePointyFeedback(req, res) {
   const expected = (process.env.POINTY_FEEDBACK_SECRET || "").trim();
   if (!expected) {
     res.writeHead(503, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Feedback Taiga bridge not configured" }));
+    res.end(JSON.stringify({ error: "Feedback Vikunja bridge not configured" }));
     return;
   }
 
@@ -847,11 +847,11 @@ async function handleCreatePointyFeedback(req, res) {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(ticket));
   } catch (err) {
-    console.error("Failed to create Pointy feedback Taiga ticket:", err);
+    console.error("Failed to create Pointy feedback Vikunja ticket:", err);
     res.writeHead(502, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
-        error: "Failed to create Taiga ticket",
+        error: "Failed to create Vikunja ticket",
         detail: err instanceof Error ? err.message : String(err),
       })
     );
