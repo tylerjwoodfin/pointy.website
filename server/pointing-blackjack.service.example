@@ -14,7 +14,9 @@ Wants=network-online.target docker.service
 [Service]
 Type=simple
 User=YOUR_UNIX_USER
-WorkingDirectory=/home/YOUR_UNIX_USER/git/pointy.website
+# Production uses a dedicated checkout of origin/main, updated by
+# server/publish-live.sh. Do not point this at a dev working tree.
+WorkingDirectory=/home/YOUR_UNIX_USER/git/pointy.website-live
 ExecStart=/usr/bin/node server/pointing-blackjack.mjs
 # always: a clean exit during boot (Supabase not ready yet) must still come back
 Restart=always

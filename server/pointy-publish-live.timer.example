@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for Pointy server updates on main
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

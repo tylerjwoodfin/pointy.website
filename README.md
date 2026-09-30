@@ -81,8 +81,11 @@ On the host (already running the Pointy WebSocket service):
 # After the zone is Active — routes DNS + refreshes tunnel ingress:
 ~/git/cloudflared-setup/setup-pointy-website.sh
 
-# Serve from this repo (same Supabase env file as before):
-sudo systemctl restart pointing-blackjack
+# Production serves ~/git/pointy.website-live (a checkout of origin/main),
+# not whatever branch this working tree is on. A timer fetches main every
+# minute and restarts the server when server/ or the Node dependencies change.
+# See server/pointy-publish-live.service.example.
+sudo systemctl enable --now pointy-publish-live.timer
 ```
 
 Tunnel config: `cloudflared-setup/pointing-showdown.yml`  
