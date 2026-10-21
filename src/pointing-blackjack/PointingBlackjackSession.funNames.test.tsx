@@ -60,6 +60,15 @@ function renderTable() {
   render(<PointingBlackjackSession />);
 }
 
+function playerLine(text: string) {
+  return screen.getByText((_, node) => {
+    return (
+      node?.classList.contains("pb-player-line__name") === true &&
+      node.textContent === text
+    );
+  });
+}
+
 describe("fun names at the table", () => {
   beforeEach(() => {
     mockSetFunNames.mockClear();
@@ -78,7 +87,8 @@ describe("fun names at the table", () => {
     );
     renderTable();
 
-    expect(screen.getByText("Bob the Sleepy Eagle")).toBeInTheDocument();
+    expect(playerLine("Bob the Sleepy Eagle")).toBeInTheDocument();
+    expect(screen.getByText("the Sleepy Eagle")).toHaveClass("pb-player-line__fun");
     expect(screen.getByText("Shown as Sam the Bold Dragon")).toBeInTheDocument();
     const toggle = screen.getByRole("checkbox", { name: /fun names/i });
     expect(toggle).toBeChecked();
@@ -128,7 +138,8 @@ describe("fun names at the table", () => {
     );
     renderTable();
 
-    expect(screen.getByText("Bob the Sleepy Eagle")).toBeInTheDocument();
+    expect(playerLine("Bob the Sleepy Eagle")).toBeInTheDocument();
+    expect(screen.getByText("the Sleepy Eagle")).toHaveClass("pb-player-line__fun");
     expect(screen.queryByRole("checkbox", { name: /fun names/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Options" })).not.toBeInTheDocument();
   });

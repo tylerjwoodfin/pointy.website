@@ -239,7 +239,10 @@ function PlayerNameCell({
     <span className="pb-player-line">
       <PlayerStatusDot online={player.online} brb={brb} />
       <span className="pb-player-line__name">
-        {funDisplayName(player.name, player.funTitle, funNames)}
+        {player.name}
+        {funNames && player.funTitle?.trim() ? (
+          <span className="pb-player-line__fun"> the {player.funTitle.trim()}</span>
+        ) : null}
       </span>
       <span className="pb-player-line__flair">
         <RoleFlair role={player.role} />
