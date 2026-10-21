@@ -43,10 +43,8 @@ export type SessionProbeResult = {
   invalid: boolean;
   /** WebSocket never connected, timed out, or closed before a response. */
   unreachable?: boolean;
-  /** Present when the session exists — used to avoid duplicate codenames. */
+  /** Present when the session exists. */
   playerNames?: string[];
-  /** Present when the session exists — joiners skip the name field when true. */
-  anonymousMode?: boolean;
 };
 
 const SESSION_EXISTS_PROBE_TIMEOUT_MS = 15_000;
@@ -57,7 +55,7 @@ type Ctx = {
   lastError: string | null;
   createSession: (
     name: string,
-    options?: { sessionId?: string; role?: PlayerRole; anonymousMode?: boolean }
+    options?: { sessionId?: string; role?: PlayerRole }
   ) => void;
   joinSession: (
     sessionId: string,
@@ -73,6 +71,7 @@ type Ctx = {
   newRound: () => void;
   leaveTable: () => void;
   setBrb: (brb: boolean) => void;
+  setFunNames: (enabled: boolean) => void;
   updateName: (name: string) => void;
 };
 
@@ -211,7 +210,6 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
               exists?: boolean;
               invalid?: boolean;
               playerNames?: unknown;
-              anonymousMode?: boolean;
             };
             const sid = typeof m.sessionId === "string" ? m.sessionId : "";
             if (!sid) return;
@@ -220,12 +218,10 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
             const playerNames = Array.isArray(m.playerNames)
               ? m.playerNames.filter((n): n is string => typeof n === "string")
               : undefined;
-            const anonymousMode = m.anonymousMode === true;
             flushSessionExistsWaiters(sid, {
               exists,
               invalid,
               playerNames,
-              anonymousMode,
             });
           }
           if (msg.type === "error" && msg.message) {
@@ -385,7 +381,7 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
   const createSession = useCallback(
     (
       name: string,
-      options?: { sessionId?: string; role?: PlayerRole; anonymousMode?: boolean }
+      options?: { sessionId?: string; role?: PlayerRole }
     ) => {
       const n = name.trim();
       if (!n) return;
@@ -394,7 +390,6 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
       sendWhenReady({
         type: "create",
         name: n,
-        anonymousMode: options?.anonymousMode === true,
         ...(sid ? { sessionId: sid } : {}),
         ...(options?.role ? { role: options.role } : {}),
       });
@@ -522,6 +517,13 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
     [sendWhenReady]
   );
 
+  const setFunNames = useCallback(
+    (enabled: boolean) => {
+      sendWhenReady({ type: "setFunNames", enabled });
+    },
+    [sendWhenReady]
+  );
+
   const updateName = useCallback(
     (name: string) => {
       const n = name.trim();
@@ -545,6 +547,7 @@ export const PointingBlackjackProvider: React.FC<{ children: React.ReactNode }> 
     newRound,
     leaveTable,
     setBrb,
+    setFunNames,
     updateName,
   };
 

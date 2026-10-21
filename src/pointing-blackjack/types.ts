@@ -9,6 +9,8 @@ export type PlayerRole = "product" | "qa" | "dev";
 export type PlayerRow = {
   id: string;
   name: string;
+  /** "Sleepy Eagle" half of a fun name. Omitted when the server has not assigned one. */
+  funTitle?: string;
   online: boolean;
   role?: PlayerRole;
   /** Away / be right back — own row shows red status; missed votes show BRB instead of a frown. */
@@ -22,8 +24,8 @@ export type SessionState = {
   gameOver: boolean;
   /** Unix ms when the server drops this table (2 hours after creation). */
   expiresAt: number;
-  /** When true, joiners get generated nicknames (legacy default). */
-  anonymousMode?: boolean;
+  /** When false, lists show real names. Defaults on. */
+  funNames?: boolean;
   players: PlayerRow[];
   voteByPlayer: Record<string, SerializedVote>;
   /** Present only for Product/BA and players named Tyler. */

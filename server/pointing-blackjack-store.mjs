@@ -8,9 +8,9 @@ import { emptyParticipation, normalizeParticipation, touchParticipant } from "./
 
 /**
  * @typedef {'product' | 'qa' | 'dev'} PlayerRole
- * @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole }} Player
+ * @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole, funTitle?: string }} Player
  * @typedef {{ rounds: number, sent: boolean, players: Record<string, { name: string, role: string, votes: number }> }} Participation
- * @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, anonymousMode?: boolean, players: Map<string, Player>, votes: Map<string, number|null>, participation?: Participation }} Session
+ * @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, funNames?: boolean, players: Map<string, Player>, votes: Map<string, number|null>, participation?: Participation }} Session
  */
 
 /**
@@ -35,7 +35,9 @@ export function createPointingStore(cfg) {
   /** @type {boolean | null} */
   let roleColumnSupported = null;
   /** @type {boolean | null} */
-  let anonymousModeColumnSupported = null;
+  let funNamesColumnSupported = null;
+  /** @type {boolean | null} */
+  let funTitleColumnSupported = null;
   /** @type {boolean | null} */
   let participationColumnSupported = null;
 
@@ -54,7 +56,11 @@ export function createPointingStore(cfg) {
   /**
    * @param {unknown} error
    */
-  function isMissingAnonymousModeColumn(error) {
+  /**
+   * @param {unknown} error
+   * @param {string} column
+   */
+  function isMissingNamedColumn(error, column) {
     if (
       typeof error !== "object" ||
       error === null ||
@@ -64,10 +70,8 @@ export function createPointingStore(cfg) {
       return false;
     }
     const message =
-      "message" in error && typeof error.message === "string"
-        ? error.message
-        : "";
-    return /anonymous_mode/i.test(message);
+      "message" in error && typeof error.message === "string" ? error.message : "";
+    return new RegExp(column, "i").test(message);
   }
 
   /**
@@ -91,20 +95,22 @@ export function createPointingStore(cfg) {
    * @param {string} sessionId
    */
   async function fetchPlayerRows(sessionId) {
-    if (roleColumnSupported === false) {
-      const { data, error } = await supabase
-        .from("pointing_players")
-        .select("id, name, brb")
-        .eq("session_id", sessionId);
-      if (error) throw error;
-      return data ?? [];
-    }
+    const columns = ["id", "name", "brb"];
+    if (roleColumnSupported !== false) columns.push("role");
+    if (funTitleColumnSupported !== false) columns.push("fun_title");
 
     const { data, error } = await supabase
       .from("pointing_players")
-      .select("id, name, brb, role")
+      .select(columns.join(", "))
       .eq("session_id", sessionId);
-    if (error && isMissingRoleColumn(error)) {
+    if (error && funTitleColumnSupported !== false && isMissingNamedColumn(error, "fun_title")) {
+      funTitleColumnSupported = false;
+      console.warn(
+        "pointing_players.fun_title column missing — run supabase/migrations/20261020000000_pointing_fun_names.sql"
+      );
+      return fetchPlayerRows(sessionId);
+    }
+    if (error && roleColumnSupported !== false && isMissingRoleColumn(error)) {
       roleColumnSupported = false;
       console.warn(
         "pointing_players.role column missing — run supabase/migrations/20260708000000_pointing_player_role.sql"
@@ -112,30 +118,45 @@ export function createPointingStore(cfg) {
       return fetchPlayerRows(sessionId);
     }
     if (error) throw error;
-    roleColumnSupported = true;
+    if (roleColumnSupported !== false) roleColumnSupported = true;
+    if (funTitleColumnSupported !== false) funTitleColumnSupported = true;
     return data ?? [];
   }
 
   /**
-   * @param {Array<{ id: string, session_id: string, name: string, brb: boolean, role: PlayerRole }>} playerRows
+   * @param {Array<{ id: string, session_id: string, name: string, brb: boolean, role: PlayerRole, fun_title?: string | null }>} playerRows
+   */
+  function playerInsertPayload(playerRows) {
+    return playerRows.map((player) => {
+      /** @type {Record<string, unknown>} */
+      const row = {
+        id: player.id,
+        session_id: player.session_id,
+        name: player.name,
+        brb: player.brb,
+      };
+      if (roleColumnSupported !== false) row.role = player.role;
+      if (funTitleColumnSupported !== false) row.fun_title = player.fun_title ?? null;
+      return row;
+    });
+  }
+
+  /**
+   * @param {Array<{ id: string, session_id: string, name: string, brb: boolean, role: PlayerRole, fun_title?: string | null }>} playerRows
    */
   async function insertPlayerRows(playerRows) {
     if (!playerRows.length) return;
 
-    if (roleColumnSupported === false) {
-      const legacyRows = playerRows.map(({ id, session_id, name, brb }) => ({
-        id,
-        session_id,
-        name,
-        brb,
-      }));
-      const { error } = await supabase.from("pointing_players").insert(legacyRows);
-      if (error) throw error;
+    const { error } = await supabase.from("pointing_players").insert(playerInsertPayload(playerRows));
+    if (error && funTitleColumnSupported !== false && isMissingNamedColumn(error, "fun_title")) {
+      funTitleColumnSupported = false;
+      console.warn(
+        "pointing_players.fun_title column missing — run supabase/migrations/20261020000000_pointing_fun_names.sql"
+      );
+      await insertPlayerRows(playerRows);
       return;
     }
-
-    const { error } = await supabase.from("pointing_players").insert(playerRows);
-    if (error && isMissingRoleColumn(error)) {
+    if (error && roleColumnSupported !== false && isMissingRoleColumn(error)) {
       roleColumnSupported = false;
       console.warn(
         "pointing_players.role column missing — run supabase/migrations/20260708000000_pointing_player_role.sql"
@@ -144,7 +165,8 @@ export function createPointingStore(cfg) {
       return;
     }
     if (error) throw error;
-    roleColumnSupported = true;
+    if (roleColumnSupported !== false) roleColumnSupported = true;
+    if (funTitleColumnSupported !== false) funTitleColumnSupported = true;
   }
 
   /**
@@ -158,18 +180,18 @@ export function createPointingStore(cfg) {
       game_over: session.gameOver,
       expires_at: new Date(session.expiresAt).toISOString(),
     };
-    if (anonymousModeColumnSupported !== false) {
-      row.anonymous_mode = session.anonymousMode === true;
+    if (funNamesColumnSupported !== false) {
+      row.fun_names = session.funNames !== false;
     }
     if (participationColumnSupported !== false) {
       row.participation = session.participation ?? emptyParticipation();
     }
 
     const { error } = await supabase.from("pointing_sessions").upsert(row);
-    if (error && isMissingAnonymousModeColumn(error)) {
-      anonymousModeColumnSupported = false;
+    if (error && isMissingNamedColumn(error, "fun_names")) {
+      funNamesColumnSupported = false;
       console.warn(
-        "pointing_sessions.anonymous_mode column missing — run supabase/migrations/20260831000000_pointing_anonymous_mode.sql"
+        "pointing_sessions.fun_names column missing — run supabase/migrations/20261020000000_pointing_fun_names.sql"
       );
       await upsertSessionRow(session);
       return;
@@ -183,7 +205,7 @@ export function createPointingStore(cfg) {
       return;
     }
     if (error) throw error;
-    if (anonymousModeColumnSupported !== false) anonymousModeColumnSupported = true;
+    if (funNamesColumnSupported !== false) funNamesColumnSupported = true;
     if (participationColumnSupported !== false) participationColumnSupported = true;
   }
 
@@ -211,6 +233,7 @@ export function createPointingStore(cfg) {
       name: pl.name,
       brb: pl.brb === true,
       role: pl.role ?? "dev",
+      fun_title: pl.funTitle ?? null,
     }));
     if (playerRows.length) {
       await insertPlayerRows(playerRows);
@@ -250,7 +273,7 @@ export function createPointingStore(cfg) {
   async function fetchSessionRows() {
     const now = new Date().toISOString();
     const columns = ["id", "revealed", "game_over", "expires_at"];
-    if (anonymousModeColumnSupported !== false) columns.push("anonymous_mode");
+    if (funNamesColumnSupported !== false) columns.push("fun_names");
     if (participationColumnSupported !== false) columns.push("participation");
 
     const { data, error } = await supabase
@@ -258,10 +281,10 @@ export function createPointingStore(cfg) {
       .select(columns.join(", "))
       .gt("expires_at", now)
       .eq("game_over", false);
-    if (error && isMissingAnonymousModeColumn(error)) {
-      anonymousModeColumnSupported = false;
+    if (error && isMissingNamedColumn(error, "fun_names")) {
+      funNamesColumnSupported = false;
       console.warn(
-        "pointing_sessions.anonymous_mode column missing — run supabase/migrations/20260831000000_pointing_anonymous_mode.sql"
+        "pointing_sessions.fun_names column missing — run supabase/migrations/20261020000000_pointing_fun_names.sql"
       );
       return fetchSessionRows();
     }
@@ -273,7 +296,7 @@ export function createPointingStore(cfg) {
       return fetchSessionRows();
     }
     if (error) throw error;
-    if (anonymousModeColumnSupported !== false) anonymousModeColumnSupported = true;
+    if (funNamesColumnSupported !== false) funNamesColumnSupported = true;
     if (participationColumnSupported !== false) participationColumnSupported = true;
     return data ?? [];
   }
@@ -296,7 +319,7 @@ export function createPointingStore(cfg) {
         revealed: row.revealed === true,
         gameOver: row.game_over === true,
         expiresAt: new Date(row.expires_at).getTime(),
-        anonymousMode: row.anonymous_mode === true,
+        funNames: row.fun_names !== false,
         players: new Map(
           playerRows.map((p) => [
             p.id,
@@ -309,6 +332,10 @@ export function createPointingStore(cfg) {
                 (p.role === "product" || p.role === "qa" || p.role === "dev")
                   ? p.role
                   : "dev",
+              funTitle:
+                "fun_title" in p && typeof p.fun_title === "string" && p.fun_title.trim()
+                  ? p.fun_title.trim()
+                  : undefined,
             },
           ])
         ),

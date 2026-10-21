@@ -360,6 +360,11 @@ $pb-glow-blue-lg: 0 0 18px rgba(74, 165, 255, 0.35);
       flex: 1;
     }
   }
+
+  &__fun-name {
+    margin: 8px 0 0;
+    font-size: 14px;
+  }
 }
 
 .pb-flair {
