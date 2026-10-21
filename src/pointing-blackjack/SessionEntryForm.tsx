@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { uniqueCodename } from "./codename";
 import type { PlayerRole } from "./types";
 
 export type RoleButtonSpec = {
@@ -29,77 +28,44 @@ export const JOIN_BUTTONS: RoleButtonSpec[] = [
 export type SessionEntrySubmit = {
   role: PlayerRole;
   name: string;
-  anonymousMode: boolean;
 };
 
 type SessionEntryFormProps = {
   busy: boolean;
   buttons: RoleButtonSpec[];
-  /**
-   * When set, this is a join (or resume) of an existing session: the checkbox
-   * is hidden and name generation follows the session's anonymous mode.
-   */
-  lockedAnonymousMode?: boolean;
-  existingNames?: readonly string[];
   onSubmit: (args: SessionEntrySubmit) => void;
 };
 
 export const SessionEntryForm: React.FC<SessionEntryFormProps> = ({
   busy,
   buttons,
-  lockedAnonymousMode,
-  existingNames = [],
   onSubmit,
 }) => {
-  const showToggle = lockedAnonymousMode === undefined;
-  const [draftAnonymous, setDraftAnonymous] = useState(false);
   const [draftName, setDraftName] = useState("");
-  const anonymousMode = showToggle ? draftAnonymous : lockedAnonymousMode;
-  const needName = !anonymousMode;
-  const nameReady = !needName || Boolean(draftName.trim());
+  const nameReady = Boolean(draftName.trim());
   const disableActions = busy || !nameReady;
 
   const pickRole = (role: PlayerRole) => {
     if (disableActions) return;
-    const name = anonymousMode
-      ? uniqueCodename(existingNames)
-      : draftName.trim();
+    const name = draftName.trim();
     if (!name) return;
-    onSubmit({ role, name, anonymousMode });
+    onSubmit({ role, name });
   };
 
   return (
     <div className="pb-join-options">
-      {showToggle ? (
-        <div>
-          <label className="pb-check">
-            <input
-              type="checkbox"
-              checked={draftAnonymous}
-              onChange={(e) => setDraftAnonymous(e.target.checked)}
-            />
-            Anonymous Mode
-          </label>
-          <p className="pb-check__hint">
-            Players join with fun nicknames.
-          </p>
-        </div>
-      ) : null}
-
-      {needName ? (
-        <label className="pb-label">
-          Your name
-          <input
-            className="pb-input"
-            value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
-            maxLength={40}
-            autoComplete="nickname"
-            autoFocus
-            required
-          />
-        </label>
-      ) : null}
+      <label className="pb-label">
+        Your name
+        <input
+          className="pb-input"
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
+          maxLength={40}
+          autoComplete="nickname"
+          autoFocus
+          required
+        />
+      </label>
 
       <div className="pb-join-options__buttons">
         {buttons.map((btn) => (

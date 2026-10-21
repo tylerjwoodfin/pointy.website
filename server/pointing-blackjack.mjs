@@ -32,6 +32,7 @@ import {
   SESSION_SUMMARY_SUBJECT,
 } from "./session-summary-mail.mjs";
 import { liveVoteCountsForViewer } from "./live-vote-counts.mjs";
+import { canToggleFunNames, ensureFunTitles } from "./fun-name.mjs";
 
 const PORT = Number(process.env.POINTING_BLACKJACK_PORT || 3333);
 const FEEDBACK_PATH = "/create-pointy-feedback";
@@ -40,9 +41,9 @@ const HEARTBEAT_INTERVAL_MS = 25 * 1000;
 const EXPIRED_SESSION_CLEANUP_MS = 10 * 60 * 1000;
 
 /** @typedef {'product' | 'qa' | 'dev'} PlayerRole */
-/** @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole }} Player */
+/** @typedef {{ name: string, online: boolean, brb?: boolean, role?: PlayerRole, funTitle?: string }} Player */
 /** @typedef {{ rounds: number, sent: boolean, players: Record<string, { name: string, role: string, votes: number }> }} Participation */
-/** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, anonymousMode?: boolean, players: Map<string, Player>, votes: Map<string, number|null>, participation: Participation, summaryAttempts?: number }} Session */
+/** @typedef {{ id: string, revealed: boolean, gameOver: boolean, expiresAt: number, funNames?: boolean, players: Map<string, Player>, votes: Map<string, number|null>, participation: Participation, summaryAttempts?: number }} Session */
 
 /** @type {Map<string, Session>} */
 const sessions = new Map();
@@ -275,6 +276,7 @@ function buildStateForPlayer(session, viewerId) {
   const players = [...session.players.entries()].map(([id, pl]) => ({
     id,
     name: pl.name,
+    funTitle: pl.funTitle,
     online: pl.online !== false,
     brb: pl.brb === true,
     role: pl.role ?? "dev",
@@ -298,7 +300,7 @@ function buildStateForPlayer(session, viewerId) {
     myPlayerId: viewerId,
     revealed: session.revealed,
     gameOver: session.gameOver,
-    anonymousMode: session.anonymousMode === true,
+    funNames: session.funNames !== false,
     players,
     voteByPlayer,
     expiresAt: session.expiresAt,
@@ -466,7 +468,6 @@ function attachSocketHandlers(wss) {
           exists,
           invalid: false,
           playerNames,
-          anonymousMode: exists ? session.anonymousMode === true : false,
         })
       );
       return;
@@ -497,7 +498,6 @@ function attachSocketHandlers(wss) {
       const creatorId = randomUUID();
       const expiresAt = Date.now() + SESSION_TTL_MS;
       const role = parsePlayerRole(msg.role) ?? "product";
-      const anonymousMode = msg.anonymousMode === true;
       /** @type {Session} */
       const participation = emptyParticipation();
       touchParticipant(participation, creatorId, { name, role });
@@ -506,11 +506,12 @@ function attachSocketHandlers(wss) {
         revealed: false,
         gameOver: false,
         expiresAt,
-        anonymousMode,
+        funNames: true,
         players: new Map([[creatorId, { name, online: true, role }]]),
         votes: new Map(),
         participation,
       };
+      ensureFunTitles(session);
       sessions.set(sessionId, session);
       scheduleSessionExpiry(sessionId);
       registerPlayerSocket(ws, session, creatorId);
@@ -554,6 +555,7 @@ function attachSocketHandlers(wss) {
         playerId = randomUUID();
         session.players.set(playerId, { name, online: true, role });
       }
+      ensureFunTitles(session);
       if (!session.participation) session.participation = emptyParticipation();
       const joined = session.players.get(playerId);
       if (joined) touchParticipant(session.participation, playerId, joined);
@@ -599,6 +601,18 @@ function attachSocketHandlers(wss) {
         broadcastSession(session.id);
         void saveSession(session);
       }
+      return;
+    }
+
+    if (msg.type === "setFunNames") {
+      const pl = session.players.get(meta.playerId);
+      if (!canToggleFunNames(pl)) {
+        sendError(ws, "Only a BA or Tyler can change fun names");
+        return;
+      }
+      session.funNames = msg.enabled === true;
+      broadcastSession(session.id);
+      void saveSession(session);
       return;
     }
 
@@ -680,9 +694,13 @@ async function main() {
   store = createPointingStore(supabaseCfg);
   try {
     await store.hydrateSessions(sessions);
-    for (const sessionId of sessions.keys()) {
-      scheduleSessionExpiry(sessionId);
-      scheduleSummaryCheck(sessionId);
+    for (const session of sessions.values()) {
+      const missingTitle = [...session.players.values()].some((pl) => !pl.funTitle);
+      ensureFunTitles(session);
+      if (session.funNames === undefined) session.funNames = true;
+      if (missingTitle) void saveSession(session);
+      scheduleSessionExpiry(session.id);
+      scheduleSummaryCheck(session.id);
     }
     console.log(`Hydrated ${sessions.size} session(s) from Supabase`);
   } catch (err) {

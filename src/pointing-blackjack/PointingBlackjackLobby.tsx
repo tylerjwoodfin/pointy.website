@@ -25,8 +25,8 @@ export const PointingBlackjackLobby: React.FC = () => {
         <SessionEntryForm
           busy={busy}
           buttons={LOBBY_START_BUTTONS}
-          onSubmit={({ role, name, anonymousMode }) => {
-            createSession(name, { role, anonymousMode });
+          onSubmit={({ role, name }) => {
+            createSession(name, { role });
           }}
         />
       </section>

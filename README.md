@@ -8,7 +8,7 @@ Originally extracted from [tyler.cloud](https://github.com/tylerjwoodfin/tyler.c
 
 ## Features
 
-- Create a session and share an invite link. Joiners enter a name unless the host enables Anonymous Mode (generated nicknames, same as before).
+- Create a session and share an invite link. Everyone joins with their name. Fun Names is on by default (`Bob the Sleepy Eagle`); a BA or Tyler can turn it off from Options under the dealer list.
 - Product / QA / Dev roles at the table
 - Real-time votes and reveal
 - BRB / away status for players

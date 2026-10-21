@@ -16,6 +16,7 @@ import { playersAtTable } from "./playersAtTable";
 import { showNoVoteFrown } from "./showNoVoteFrown";
 import { teamVoteParticipation } from "./teamVoteParticipation";
 import type { RoleParticipation, TeamVoteParticipation } from "./teamVoteParticipation";
+import { canToggleFunNames, funDisplayName } from "./funName";
 import type { PlayerRole, PlayerRow, VoteValue } from "./types";
 import {
   JOIN_BUTTONS,
@@ -225,11 +226,21 @@ function RoleFlair({ role }: { role?: PlayerRole }) {
   return null;
 }
 
-function PlayerNameCell({ player, brb }: { player: PlayerRow; brb?: boolean }) {
+function PlayerNameCell({
+  player,
+  brb,
+  funNames,
+}: {
+  player: PlayerRow;
+  brb?: boolean;
+  funNames: boolean;
+}) {
   return (
     <span className="pb-player-line">
       <PlayerStatusDot online={player.online} brb={brb} />
-      <span className="pb-player-line__name">{player.name}</span>
+      <span className="pb-player-line__name">
+        {funDisplayName(player.name, player.funTitle, funNames)}
+      </span>
       <span className="pb-player-line__flair">
         <RoleFlair role={player.role} />
       </span>
@@ -239,10 +250,12 @@ function PlayerNameCell({ player, brb }: { player: PlayerRow; brb?: boolean }) {
 
 function YouCard({
   name,
+  funLabel,
   role,
   onSave,
 }: {
   name: string;
+  funLabel?: string;
   role?: PlayerRole;
   onSave: (name: string) => void;
 }) {
@@ -281,6 +294,32 @@ function YouCard({
           <RoleFlair role={role} />
         </div>
       </label>
+      {funLabel && funLabel !== name ? (
+        <p className="pb-muted pb-you__fun-name">Shown as {funLabel}</p>
+      ) : null}
+    </section>
+  );
+}
+
+function FunNamesOptions({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+}) {
+  return (
+    <section className="pb-panel pb-options">
+      <h2>Options</h2>
+      <label className="pb-check">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        Fun Names
+      </label>
+      <p className="pb-check__hint">Show names like Bob the Sleepy Eagle.</p>
     </section>
   );
 }
@@ -301,6 +340,7 @@ export const PointingBlackjackSession: React.FC = () => {
     newRound,
     leaveTable,
     setBrb,
+    setFunNames,
     updateName,
     connectionStatus,
   } = usePointingBlackjack();
@@ -311,8 +351,6 @@ export const PointingBlackjackSession: React.FC = () => {
   const [roomPhase, setRoomPhase] = useState<RoomPhase>("loading");
   /** Bumps the room probe when the user retries after a connection failure. */
   const [probeNonce, setProbeNonce] = useState(0);
-  const [sessionPlayerNames, setSessionPlayerNames] = useState<string[]>([]);
-  const [sessionAnonymousMode, setSessionAnonymousMode] = useState(false);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -351,18 +389,13 @@ export const PointingBlackjackSession: React.FC = () => {
       return;
     }
     setRoomPhase("loading");
-    setSessionPlayerNames([]);
-    setSessionAnonymousMode(false);
     void querySessionExists(paramId).then((r) => {
       if (cancelled) return;
       if (stateRef.current?.sessionId === paramId) return;
       if (r.unreachable) setRoomPhase("unreachable");
       else if (r.invalid) setRoomPhase("invalid");
-      else if (r.exists) {
-        setSessionPlayerNames(r.playerNames ?? []);
-        setSessionAnonymousMode(r.anonymousMode === true);
-        setRoomPhase("exists");
-      } else setRoomPhase("missing");
+      else if (r.exists) setRoomPhase("exists");
+      else setRoomPhase("missing");
     });
     return () => {
       cancelled = true;
@@ -401,9 +434,9 @@ export const PointingBlackjackSession: React.FC = () => {
   );
 
   const startMissingAs = useCallback(
-    (role: PlayerRole, name: string, anonymousMode: boolean) => {
+    (role: PlayerRole, name: string) => {
       if (!paramId) return;
-      createSession(name, { sessionId: paramId, role, anonymousMode });
+      createSession(name, { sessionId: paramId, role });
     },
     [paramId, createSession]
   );
@@ -501,8 +534,8 @@ export const PointingBlackjackSession: React.FC = () => {
             <SessionEntryForm
               busy={connectionStatus === "connecting"}
               buttons={MISSING_START_BUTTONS}
-              onSubmit={({ role, name, anonymousMode }) => {
-                startMissingAs(role, name, anonymousMode);
+              onSubmit={({ role, name }) => {
+                startMissingAs(role, name);
               }}
             />
             {lastError ? <p className="pb-error">{lastError}</p> : null}
@@ -530,8 +563,6 @@ export const PointingBlackjackSession: React.FC = () => {
           <SessionEntryForm
             busy={connectionStatus === "connecting"}
             buttons={JOIN_BUTTONS}
-            lockedAnonymousMode={sessionAnonymousMode}
-            existingNames={sessionPlayerNames}
             onSubmit={({ role, name }) => {
               joinWithRole(role, name);
             }}
@@ -596,6 +627,8 @@ export const PointingBlackjackSession: React.FC = () => {
 
   const myPlayer = state.players.find((p) => p.id === state.myPlayerId);
   const myBrb = myPlayer?.brb === true;
+  const funNamesOn = state.funNames !== false;
+  const showFunNamesOptions = canToggleFunNames(myPlayer);
   const productPlayers = atTable.filter((p) => p.role === "product");
   const teamPlayers = atTable.filter((p) => p.role !== "product");
   const teamParticipation = teamVoteParticipation(
@@ -612,7 +645,7 @@ export const PointingBlackjackSession: React.FC = () => {
       return (
         <tr key={p.id}>
           <td>
-            <PlayerNameCell player={p} brb={brb} />
+            <PlayerNameCell player={p} brb={brb} funNames={funNamesOn} />
           </td>
           <td
             aria-label={
@@ -649,7 +682,7 @@ export const PointingBlackjackSession: React.FC = () => {
       return (
         <li key={p.id} className="pb-vote-row">
           <span className="pb-vote-row__name">
-            <PlayerNameCell player={p} brb={brb} />
+            <PlayerNameCell player={p} brb={brb} funNames={funNamesOn} />
           </span>
           <span className="pb-vote-row__val">
             {has ? (
@@ -739,6 +772,7 @@ export const PointingBlackjackSession: React.FC = () => {
               {myPlayer ? (
                 <YouCard
                   name={myPlayer.name}
+                  funLabel={funDisplayName(myPlayer.name, myPlayer.funTitle, funNamesOn)}
                   role={myPlayer.role}
                   onSave={updateName}
                 />
@@ -784,6 +818,10 @@ export const PointingBlackjackSession: React.FC = () => {
                     </table>
                   </div>
                 </section>
+              ) : null}
+
+              {showFunNamesOptions ? (
+                <FunNamesOptions enabled={funNamesOn} onChange={setFunNames} />
               ) : null}
             </div>
 
@@ -853,6 +891,9 @@ export const PointingBlackjackSession: React.FC = () => {
                     <h3>Dealers</h3>
                     <ul className="pb-vote-list">{renderProductList(productPlayers)}</ul>
                   </div>
+                ) : null}
+                {showFunNamesOptions ? (
+                  <FunNamesOptions enabled={funNamesOn} onChange={setFunNames} />
                 ) : null}
               </div>
               <section className="pb-panel pb-revealed-layout__cards">
